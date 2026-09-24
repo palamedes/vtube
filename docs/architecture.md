@@ -161,7 +161,14 @@ The voice is never resampled or re-timed, and the video runs as long as the voic
 
 A character is a `CharacterDefinition` (`web/src/characters/types.ts`): `create(container)` returns an instance with `update(face, now)`, called every animation frame with the tuned face. Register it in `web/src/characters/index.ts` and it appears in the Studio's Scene tab, at `/render?character=<id>`, and at `/sheet?character=<id>`, a grid of fixed poses for designing it without a tracker. Exports rasterize the character's `<svg>` element, so for now a character draws into one, in a square `viewBox`.
 
-- `placeholder.ts`: plain SVG that shows how the channels map to parts.
-- `mascot.ts`: a layered cartoon in an esports-mascot style. Its layers slide by different amounts as the head turns (the face most, the ear cups least) to suggest depth, and the parts that join layers (the glasses' arms, the mic boom) are redrawn each frame between them.
+`placeholder.ts` is plain SVG that shows how the channels map to parts.
+
+**Private characters.** A module at `characters/private/<name>/character.ts` whose default export is a `CharacterDefinition` is loaded automatically (`import.meta.glob` in `characters/index.ts`). The folder is gitignored, so a character built from art you can't or don't want to publish never reaches the public repo, and a public clone simply doesn't have it. Private modules import the shared code by relative path (`../../../web/src/...`) and are type-checked with the rest of the web code.
+
+A character traced from a picture works well in this setup: trace the picture into flat-colored layers (potrace does well on bold, flat mascot art), keep the layers that move separately (brows, eyelids, eye whites, jaw, beard), and rig them in `update`. Some things learned doing that:
+
+- Layers slide by different amounts as the head turns (the face most, the ear cups least), which reads as depth. Keep anything that could slide over the head's outline clipped to the face.
+- Parts that join two layers, like glasses' arms or a mic boom, are drawn each frame between their two anchors.
+- A clip path on a group of stacked shapes (navy under gold, say) blends the lower color into the clipped edge, which shows as a faint line. A mask applies after the group is drawn and has no such line, but costs more to draw in exports, so use it only where a cut edge shows.
 
 Planned tiers: layered 2D puppets, 3D through three.js, and offline rendering in Blender from recorded takes.

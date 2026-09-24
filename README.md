@@ -4,7 +4,7 @@ Be a cartoon on camera while keeping your own voice. An iPhone (or a plain webca
 
 Your voice is always your own. AI is never used to speak, and nothing here invents your performance: the phone measures your face, and the character follows it.
 
-**Status:** works end to end: the hub, the Studio (a web UI for tuning, testing, recording, laying out the scene, and exporting finished videos), and two characters, a simple placeholder and a cartoon mascot. Layered 2D puppets, 3D characters, and multi-character scenes come next. See [research.md](research.md) for how we got here and where it's going.
+**Status:** works end to end: the hub, the Studio (a web UI for tuning, testing, recording, laying out the scene, and exporting finished videos), and a simple placeholder character, plus support for private characters made from your own art. Layered 2D puppets, 3D characters, and multi-character scenes come next. See [research.md](research.md) for how we got here and where it's going.
 
 ## What you need
 
@@ -82,12 +82,11 @@ For going live, add a **Browser** source to each canvas. The Studio's Setup pane
 
 ## Characters
 
-Pick one in the Scene tab.
+Pick one in the Scene tab. The repo includes a **placeholder**: a simple face that shows plainly how the face channels map to parts.
 
-- **Placeholder:** a simple face that shows plainly how the face channels map to parts.
-- **Mascot:** a gruff streamer in a backwards cap, headset, and round glasses, with heavy brows and a blond goatee, drawn in an esports-mascot style.
+Characters made from art you don't want in the public repo (your own mascot, or a picture you don't have the rights to share) go in `characters/private/<name>/`, which git ignores. The Studio, OBS page, and exports pick them up from there automatically. [docs/architecture.md](docs/architecture.md) covers writing one.
 
-To look over a character without a tracker, open `http://127.0.0.1:8750/sheet?character=mascot`: the character in a grid of fixed poses (blink, talking, smile, frown, turning, and more). [docs/architecture.md](docs/architecture.md) covers adding your own.
+To look over a character without a tracker, open `http://127.0.0.1:8750/sheet?character=<id>` (for example `placeholder`): the character in a grid of fixed poses (blink, talking, smile, frown, turning, and more).
 
 ## Where things live
 

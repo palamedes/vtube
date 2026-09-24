@@ -46,8 +46,10 @@ build_web() {
 
 web_stale() {
     [[ -f "$WEB/dist/index.html" ]] || return 0
+    local private=()
+    [[ -d "$HERE/characters/private" ]] && private=("$HERE/characters/private")
     [[ -n "$(find "$WEB/src" "$WEB/public" "$WEB/index.html" "$WEB/render.html" "$WEB/sheet.html" "$WEB/package.json" \
-        -newer "$WEB/dist/index.html" -print -quit)" ]]
+        "${private[@]}" -newer "$WEB/dist/index.html" -print -quit)" ]]
 }
 
 case "${1:-}" in
