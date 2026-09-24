@@ -1,0 +1,33 @@
+[project]
+name = "vtube-hub"
+version = "0.1.0"
+description = "Face-tracking hub for vtube: receives iPhone ARKit data, records takes, and feeds the Studio and character renderers."
+readme = "README.md"
+authors = [
+    { name = "Jason Ellis", email = "955410+palamedes@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.14",
+    "mediapipe>=1.0.1",
+    "numpy>=2.5",
+]
+
+[project.scripts]
+vtube-hub = "vtube_hub.__main__:main"
+vtube-fake-phone = "vtube_hub.fake_phone:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-aiohttp>=1.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.25,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

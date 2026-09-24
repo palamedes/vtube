@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+web/dist/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+
+# This repo is public. Performance media and model weights never belong in it.
+# Takes live outside the repo (~/.local/share/vtube); these rules are a safety net.
+takes/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.mov
+*.mp4
+*.mkv
+*.webm
+weights/
+*.safetensors
+*.ckpt
+*.onnx
+*.engine
+characters/private/

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# vt: the vtube hub. A face tracker (iPhone or webcam) drives a cartoon character,
+# live in OBS or from recorded takes, and the Studio page is where you tune it.
+#
+#   ./vt                  # serve http://127.0.0.1:8750 and open the Studio in the browser
+#   ./vt --simulator      # start with the simulated face instead of a tracker
+#   ./vt --no-open        # don't open the browser
+#   ./vt dev              # hub plus a hot-reloading Studio at http://127.0.0.1:5173
+#   ./vt build            # rebuild the Studio's web UI
+#   ./vt test             # run the hub and web test suites
+#
+# The first run sets up the Python environment and builds the web UI (a minute or
+# so). Ctrl+C stops the hub. Takes and settings live in ~/.local/share/vtube.
+# (Named vt, not vtube: in fish, ./vtube from the parent folder cd's into the folder.)
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+HUB="$HERE/hub"
+WEB="$HERE/web"
+PY="$HUB/.venv/bin/python"
+SYNCED="$HUB/.venv/.vt-synced"
+
+need() {
+    command -v "$1" >/dev/null || { echo "vt: needs $1 ($2)" >&2; exit 1; }
+}
+
+# The Python environment: create it, or refresh it when the dependencies changed.
+python_env() {
+    if [[ ! -x "$PY" || ! -f "$SYNCED" || "$HUB/uv.lock" -nt "$SYNCED" || "$HUB/pyproject.toml" -nt "$SYNCED" ]]; then
+        need uv "https://docs.astral.sh/uv/"
+        echo "vt: setting up the Python environment..." >&2
+        (cd "$HUB" && uv sync --quiet)
+        touch "$SYNCED"
+    fi
+}
+
+build_web() {
+    need npm "Node.js"
+    if [[ ! -d "$WEB/node_modules" ]]; then
+        echo "vt: installing the web UI's packages..." >&2
+        (cd "$WEB" && npm install --no-fund --no-audit)
+    fi
+    echo "vt: building the web UI..." >&2
+    (cd "$WEB" && npm run build --silent)
+}
+
+web_stale() {
+    [[ -f "$WEB/dist/index.html" ]] || return 0
+    [[ -n "$(find "$WEB/src" "$WEB/public" "$WEB/index.html" "$WEB/render.html" "$WEB/package.json" \
+        -newer "$WEB/dist/index.html" -print -quit)" ]]
+}
+
+case "${1:-}" in
+    dev)
+        shift
+        python_env
+        need npm "Node.js"
+        [[ -d "$WEB/node_modules" ]] || (cd "$WEB" && npm install --no-fund --no-audit)
+        trap 'kill 0' EXIT
+        "$PY" -m vtube_hub --no-open "$@" &
+        (cd "$WEB" && npm run dev -- --open) &
+        wait
+        ;;
+    build)
+        build_web
+        ;;
+    test)
+        python_env
+        (cd "$HUB" && "$PY" -m pytest -q)
+        need npm "Node.js"
+        (cd "$WEB" && npm run typecheck --silent && npm test --silent)
+        ;;
+    *)
+        python_env
+        if web_stale; then build_web; fi
+        exec "$PY" -m vtube_hub "$@"
+        ;;
+esac
