@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { characterBox, DEFAULT_SCENE, headlineLayout, sanitizeScene, sceneCss, VIEW_SIZE, VIEWS, type SceneSettings } from './scene';
+import {
+  BUILTIN_LAYOUT,
+  characterBox,
+  DEFAULT_SCENE,
+  headlineLayout,
+  matchingPreset,
+  sameView,
+  sanitizeScene,
+  sceneCss,
+  VIEW_SIZE,
+  VIEWS,
+  withPreset,
+  type SceneSettings,
+} from './scene';
 import { mergeSettings } from './settings';
 
 const percent = (value: string) => Number(value.replace('%', '')) / 100;
@@ -23,7 +36,7 @@ describe('scene layout', () => {
 
   it('gives the HTML frames the same geometry the exporter draws', () => {
     const scene: SceneSettings = structuredClone(DEFAULT_SCENE);
-    scene.wide.character = { x: 0.3, y: 0.9, size: 0.7 };
+    scene.wide.character = { show: true, x: 0.3, y: 0.9, size: 0.7 };
     scene.tall.headline.size = 0.07;
     for (const view of VIEWS) {
       const { width, height } = VIEW_SIZE[view];
@@ -88,5 +101,65 @@ describe('scene settings', () => {
     expect(settings.scene.tall.headline.show).toBe(false);
     expect(settings.scene.tall.headline.y).toBe(DEFAULT_SCENE.tall.headline.y);
     expect(settings.scene.wide).toEqual(DEFAULT_SCENE.wide);
+  });
+});
+
+describe('layout defaults and presets', () => {
+  it('fills in defaults, presets, and character visibility for older settings', () => {
+    const settings = mergeSettings({ scene: { wide: { character: { x: 0.4 } } } });
+    expect(settings.scene.wide.character).toEqual({ ...BUILTIN_LAYOUT.wide.character, x: 0.4 });
+    expect(settings.scene.defaults).toEqual(BUILTIN_LAYOUT);
+    expect(settings.scene.presets).toEqual([]);
+  });
+
+  it('keeps valid presets, fixes their values, and drops the rest', () => {
+    const settings = mergeSettings({
+      scene: {
+        presets: [
+          { name: '  News   desk ', wide: { character: { x: 9 } }, tall: {} },
+          { name: '', wide: {}, tall: {} },
+          { name: 42 },
+          'nonsense',
+          { name: 'news desk', wide: { headline: { show: false } } },
+        ],
+      },
+    });
+    expect(settings.scene.presets).toHaveLength(1);
+    const [preset] = settings.scene.presets;
+    expect(preset.name).toBe('news desk');
+    expect(preset.wide.headline.show).toBe(false);
+    expect(preset.wide.character).toEqual(BUILTIN_LAYOUT.wide.character);
+    expect(preset.tall).toEqual(BUILTIN_LAYOUT.tall);
+  });
+
+  it('ignores presets that are not a list', () => {
+    expect(mergeSettings({ scene: { presets: { name: 'x' } } }).scene.presets).toEqual([]);
+  });
+
+  it('saves the current layout under a name, replacing one with the same name', () => {
+    const scene: SceneSettings = structuredClone(DEFAULT_SCENE);
+    scene.presets = withPreset(scene, 'News');
+    scene.wide.character.x = 0.3;
+    scene.tall.character.show = false;
+    scene.presets = withPreset(scene, 'Book reading');
+    expect(scene.presets.map((p) => p.name)).toEqual(['News', 'Book reading']);
+    expect(matchingPreset(scene)?.name).toBe('Book reading');
+
+    scene.presets = withPreset(scene, 'news');
+    expect(scene.presets.map((p) => p.name)).toEqual(['news', 'Book reading']);
+    expect(scene.presets[0].wide.character.x).toBe(0.3);
+    // Saved presets are copies, not live views of the layout.
+    scene.wide.character.x = 0.5;
+    expect(scene.presets[0].wide.character.x).toBe(0.3);
+    expect(matchingPreset(scene)).toBeNull();
+  });
+
+  it('compares layouts to within slider precision', () => {
+    const a = structuredClone(BUILTIN_LAYOUT.wide);
+    const b = structuredClone(a);
+    b.character.x += 1e-6;
+    expect(sameView(a, b)).toBe(true);
+    b.character.show = false;
+    expect(sameView(a, b)).toBe(false);
   });
 });

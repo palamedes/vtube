@@ -147,4 +147,46 @@ describe('FaceDriver', () => {
     for (let t = 3; t < 12; t += 1 / 60) blinked ||= d.update(t).bs[BS.eyeBlinkLeft] > 0.9;
     expect(blinked).toBe(true);
   });
+
+  it('blinks on its own while tracking only when asked to', () => {
+    const blinksWhileTracking = (autoBlinks: boolean) => {
+      const d = new FaceDriver(raw((s) => void (s.motion.autoBlinks = autoBlinks)));
+      let most = 0;
+      for (let i = 0; i < 60 * 12; i++) {
+        const t = i / 60;
+        d.push(frame(t), t);
+        most = Math.max(most, d.update(t).bs[BS.eyeBlinkLeft]);
+      }
+      return most;
+    };
+    expect(blinksWhileTracking(false)).toBeCloseTo(0, 3);
+    expect(blinksWhileTracking(true)).toBeGreaterThan(0.9);
+  });
+
+  it('turns the body part of the way when a head turn lasts, but barely for a glance', () => {
+    const run = (turnFor: number) => {
+      const d = new FaceDriver(raw((s) => void (s.motion.bodyFollow = 0.5)));
+      let body = 0;
+      for (let i = 0; i < 60 * 4; i++) {
+        const t = i / 60;
+        d.push(frame(t, {}, [t >= 1 && t < 1 + turnFor ? 0.6 : 0, 0, 0]), t);
+        const face = d.update(t);
+        if (t < 1 + turnFor) body = face.body.yaw;
+      }
+      return body;
+    };
+    expect(run(3)).toBeCloseTo(0.3, 1); // half of a held 0.6 rad turn
+    expect(run(0.2)).toBeLessThan(0.1); // a quick glance
+  });
+
+  it('keeps the body still when following is off', () => {
+    const d = new FaceDriver(raw((s) => void (s.motion.bodyFollow = 0)));
+    let most = 0;
+    for (let i = 0; i < 180; i++) {
+      d.push(frame(i / 60, {}, [0.6, 0, 0.3]), i / 60);
+      const face = d.update(i / 60);
+      most = Math.max(most, Math.abs(face.body.yaw), Math.abs(face.body.roll));
+    }
+    expect(most).toBe(0);
+  });
 });

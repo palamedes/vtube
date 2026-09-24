@@ -68,6 +68,11 @@ function sourceHealth(source: SourceId, status: HubStatus | null): [string, stri
     if (cam.faceDetected) return ['ok', `Camera: ${Math.round(cam.fps)} fps`, `${cam.device}, tracking ${cam.inferenceMs} ms/frame`];
     return ['warn', 'Camera: no face', 'The camera is running but finds no face'];
   }
+  if (source === 'voice') {
+    if (status.audio.disabled || !status.audio.running) return ['off', 'Voice: no mic', 'The microphone isn\'t running; pick one in the Mic menu'];
+    if (!status.voice?.hearing) return ['warn', 'Voice: no sound', 'No audio is arriving from the microphone'];
+    return ['ok', 'Voice: listening', 'Your voice moves the mouth; blinks and head motion are added'];
+  }
   return status.simulator.running ? ['ok', 'Simulator: running', ''] : ['off', 'Simulator: off', ''];
 }
 
@@ -93,6 +98,7 @@ export function TopBar({ onSetup }: { onSetup: () => void }) {
             { value: 'livelink', label: 'iPhone', title: 'Live Link Face on your phone (best mouth detail)' },
             { value: 'webcam', label: 'Camera', title: 'Your webcam, tracked on this PC with MediaPipe' },
             { value: 'simulator', label: 'Simulator', title: 'A synthetic performer, for testing without a face' },
+            { value: 'voice', label: 'Voice', title: 'Your voice moves the mouth: no camera or phone needed' },
           ]}
         />
         <button

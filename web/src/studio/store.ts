@@ -171,7 +171,11 @@ export class StudioStore {
       this.camera = metrics;
     });
     client.on('status', ({ status }) => this.set({ status, recording: this.withLocalStart(status.recording) }));
-    client.on('config', ({ config }) => this.set({ config }));
+    client.on('config', ({ config }) => {
+      // A new source starts with no raw frame, not the last one of the old source.
+      if (config.activeSource !== this.snapshot.config?.activeSource && !this.player) this.raw = null;
+      this.set({ config });
+    });
     client.on('recording', ({ recording }) => this.set({ recording: this.withLocalStart(recording) }));
     client.on('takes', ({ takes }) => this.set({ takes }));
     client.on('settings', ({ settings }) => {

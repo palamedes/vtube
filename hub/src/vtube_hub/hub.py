@@ -22,11 +22,13 @@ from .netinfo import active_firewalls, lan_addresses
 from .simulator import Simulator
 from .store import JsonFile
 from .takes import TakeRecorder, TakeStore
+from .voice import VoiceFace
 from .webcam import CameraSettings, WebcamTracker
 
 log = logging.getLogger(__name__)
 
-SOURCES = ("livelink", "webcam", "simulator")
+SOURCES = ("livelink", "webcam", "simulator", "voice")
+HEARING_WINDOW = 1.0  # the voice source counts as hearing if audio arrived this recently
 WEBCAM_DEFAULTS = {"device": None, "width": 1280, "height": 720, "fps": 60, "keepRunning": False}
 DEFAULT_CONFIG = {"activeSource": "livelink", "audioDevice": None, "webcam": WEBCAM_DEFAULTS, "orientation": {}}
 MAX_SETTINGS_BYTES = 256 * 1024
@@ -108,6 +110,8 @@ class Hub:
         self.audio = audio
         self.livelink = LiveLinkReceiver(self._on_frame, clock=clock)
         self.simulator = Simulator(self._on_frame, clock=clock)
+        self.voice = VoiceFace(self._on_frame)
+        self._last_audio = -1e9
         self.webcam = webcam_factory(self._on_frame, self._on_camera_metrics, data_dir / "models", clock=clock)
         self._livelink_addr = (livelink_host, livelink_port)
         self.recorder: TakeRecorder | None = None
@@ -151,6 +155,10 @@ class Hub:
             self.simulator.start()
         else:
             await self.simulator.stop()
+        if self.config["activeSource"] == "voice":
+            self.voice.start()
+        else:
+            self.voice.stop()
         # The camera can take a few seconds (first run downloads the face model),
         # so it starts in the background; each request applies the latest config.
         self._webcam_task = asyncio.create_task(self._sync_webcam(), name="webcam-sync")
@@ -187,6 +195,11 @@ class Hub:
             self._last_metrics = now
             self.bus.publish({"type": "camera", "metrics": metrics}, droppable=True)
 
+    def on_audio(self, chunk, t_end: float) -> None:
+        """Every microphone chunk: the voice source reads it when it's the active source."""
+        self._last_audio = t_end
+        self.voice.feed(chunk, t_end)
+
     def on_level(self, rms_db: float, peak_db: float) -> None:
         self.bus.publish({"type": "level", "rms": round(rms_db, 1), "peak": round(peak_db, 1)}, droppable=True)
 
@@ -205,6 +218,7 @@ class Hub:
             "livelink": self.livelink.status(),
             "webcam": self.webcam.status(),
             "simulator": {"running": self.simulator.running},
+            "voice": {"running": self.voice.running, "hearing": now - self._last_audio <= HEARING_WINDOW},
             "audio": self.audio.status() if self.audio is not None else {"running": False, "disabled": True},
             "recording": self.recording_status(),
             "clients": len(self.bus),

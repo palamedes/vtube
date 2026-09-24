@@ -37,10 +37,10 @@ export function Tuning() {
           <strong>Capture your neutral face</strong> each session, after you settle in, so a relaxed face reads as zero.
         </p>
         <div className="button-row">
-          <button type="button" className="primary" disabled={busy || !!player} onClick={() => void store.captureNeutral()}>
+          <button type="button" className="primary" disabled={busy || !!player || source === 'voice'} onClick={() => void store.captureNeutral()}>
             {neutral.phase !== 'idle' ? 'Capturing…' : 'Capture neutral face'}
           </button>
-          <button type="button" disabled={busy || !!player} onClick={() => void store.checkDirections()}>
+          <button type="button" disabled={busy || !!player || source === 'voice'} onClick={() => void store.checkDirections()}>
             {directions.phase !== 'idle' ? 'Checking…' : 'Check directions'}
           </button>
           {s.neutral && (
@@ -52,7 +52,9 @@ export function Tuning() {
         <p className="help small">
           Neutral face: {captured ? `captured ${captured.toLocaleString()}` : 'not captured yet (raw values used as-is)'}
           <br />
-          Directions for the {SOURCE_NAMES[source]}: {describeFix(config?.orientation[source])}
+          {source === 'voice'
+            ? 'The voice source needs neither: it has no face to calibrate.'
+            : `Directions for the ${SOURCE_NAMES[source]}: ${describeFix(config?.orientation[source])}`}
         </p>
         <Toggle
           label="Mirror (like looking in a mirror)"
@@ -121,7 +123,6 @@ export function Tuning() {
           hint="Keep low so blinks stay snappy"
           onChange={(v) => set((d) => void (d.eyes.blinkSmoothing = v))}
         />
-        <Toggle label="Blink both eyes together" checked={s.eyes.linkBlinks} hint="Hides one-eyed flickers; also hides winks" onChange={(v) => set((d) => void (d.eyes.linkBlinks = v))} />
       </Section>
 
       <Section title="Brows">
@@ -156,6 +157,29 @@ export function Tuning() {
       <Section title="Idle life">
         <Toggle label="Breathing" checked={s.motion.breathing} onChange={(v) => set((d) => void (d.motion.breathing = v))} />
         <Toggle label="Blink on its own when there's no face" checked={s.motion.idleBlinks} onChange={(v) => set((d) => void (d.motion.idleBlinks = v))} />
+        <Toggle
+          label="Blink on its own while tracking too"
+          checked={s.motion.autoBlinks}
+          hint="Adds natural blinks on top of yours, for when the tracker misses them"
+          onChange={(v) => set((d) => void (d.motion.autoBlinks = v))}
+        />
+        <Toggle
+          label="Blink both eyes together"
+          checked={s.eyes.linkBlinks}
+          hint="Hides one-eyed flickers; also hides winks"
+          onChange={(v) => set((d) => void (d.eyes.linkBlinks = v))}
+        />
+        <Slider
+          label="Body follows head turns"
+          value={s.motion.bodyFollow}
+          defaultValue={D.motion.bodyFollow}
+          min={0}
+          max={1}
+          step={0.05}
+          format={pct}
+          hint="When you turn or lean and hold it, the body slowly turns part of the way too; quick glances move only the head"
+          onChange={(v) => set((d) => void (d.motion.bodyFollow = v))}
+        />
       </Section>
 
       <div className="button-row end">

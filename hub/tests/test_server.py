@@ -2,6 +2,7 @@ import asyncio
 import shutil
 import subprocess
 
+import numpy as np
 import pytest
 from aiohttp import WSMsgType, WSServerHandshakeError
 
@@ -48,6 +49,27 @@ async def test_settings_round_trip_and_broadcast(aiohttp_client, hub):
     assert (await next_message(ws, "settings"))["settings"] == {"mirror": True}
     assert (hub.data_dir / "settings.json").is_file()
     assert (await client.put("/api/settings", json=[1, 2])).status == 400
+    await ws.close()
+
+
+async def test_voice_source_turns_microphone_audio_into_frames(aiohttp_client, hub):
+    client = await aiohttp_client(create_app(hub))
+    ws = await client.ws_connect("/ws")
+    await next_message(ws, "hello")
+    # Audio that arrives while another source is active is ignored.
+    hub.on_audio(np.zeros(960, dtype=np.float32), hub.clock())
+    assert (await client.put("/api/config", json={"activeSource": "voice"})).status == 200
+    assert (await client.post("/api/record/start")).status == 200
+    tone = (0.2 * np.sin(2 * np.pi * 150 * np.arange(960) / 48000)).astype(np.float32)
+    for i in range(10):
+        hub.on_audio(tone, hub.clock() + i * 0.02)
+    frame = await next_message(ws, "frame")
+    assert frame["src"] == "voice" and len(frame["bs"]) == 52
+    assert hub.status()["voice"] == {"running": True, "hearing": True}
+    meta = await (await client.post("/api/record/stop")).json()
+    assert meta["primarySource"] == "voice" and meta["frames"]["sources"] == ["voice"]
+    await client.put("/api/config", json={"activeSource": "livelink"})
+    assert hub.status()["voice"]["running"] is False
     await ws.close()
 
 

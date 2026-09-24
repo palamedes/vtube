@@ -824,6 +824,69 @@ input[type='range'] {
   font-weight: 400;
 }
 
+.layout-actions {
+  margin-top: 6px;
+  align-items: center;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.icon-button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.presets {
+  margin-top: 4px;
+}
+
+.preset-list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.preset-list li {
+  display: flex;
+  gap: 4px;
+}
+
+.preset-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-list li.active .preset-name {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.preset-list li.active .preset-name::after {
+  content: ' ✓';
+}
+
+.preset-save {
+  display: flex;
+  gap: 6px;
+}
+
+.preset-save input {
+  flex: 1;
+  min-width: 0;
+}
+
 fieldset {
   border: 0;
   margin: 0;

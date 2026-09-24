@@ -10,7 +10,7 @@ import { SceneFrame } from './SceneFrame';
 
 function Compare() {
   const { sources, player, config, settings } = useStudio();
-  const order: SourceId[] = ['livelink', 'webcam', 'simulator'];
+  const order: SourceId[] = ['livelink', 'webcam', 'simulator', 'voice'];
   const shown = order.filter((source) => sources.includes(source));
   if (shown.length < 2) {
     return (

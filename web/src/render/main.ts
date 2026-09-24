@@ -58,6 +58,7 @@ function layout(settings: StudioSettings): void {
   const scene = settings.scene;
   const css = sceneCss(scene[view], view);
   Object.assign(holder.style, css.character);
+  holder.style.display = scene[view].character.show ? '' : 'none';
   if (!full) return;
   const background = backgroundImage(scene, view);
   stage.style.backgroundImage = background ? `url(${background})` : '';

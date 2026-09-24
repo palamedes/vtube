@@ -96,7 +96,7 @@ export function Exporter() {
         <div>
           <h4>{player.take.name}</h4>
           <p className="help small">
-            {clockTime(duration)} · face from the {player.primary === 'webcam' ? 'camera' : player.primary === 'livelink' ? 'iPhone' : 'simulator'}
+            {clockTime(duration)} · {player.primary === 'voice' ? 'mouth from your voice' : `face from the ${player.primary === 'webcam' ? 'camera' : player.primary === 'livelink' ? 'iPhone' : 'simulator'}`}
             {player.syncOffset !== 0 && ` · face sync ${Math.round(player.syncOffset * 1000)} ms`}
             {!player.take.audio && ' · no audio in this take'}
           </p>

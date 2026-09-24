@@ -16,9 +16,11 @@ export function SceneFrame({ view }: { view: ViewId }) {
       className={`frame ${view} scene-frame ${background ? '' : 'bg-checker'}`}
       style={background ? { backgroundImage: `url(${background})` } : undefined}
     >
-      <div className="scene-character" style={css.character}>
-        <CharacterView characterId={scene.character} />
-      </div>
+      {scene[view].character.show && (
+        <div className="scene-character" style={css.character}>
+          <CharacterView characterId={scene.character} />
+        </div>
+      )}
       {scene[view].headline.show && (
         <div
           className="scene-headline"

@@ -1,5 +1,7 @@
 /** Messages and REST shapes shared with the hub (hub/src/vtube_hub/server.py). */
 
+import { BLENDSHAPES, type Blendshape } from './arkit';
+
 export type Vec3 = [number, number, number];
 
 /** One face sample before calibration or smoothing. `t` is seconds (hub clock, or since take start). */
@@ -14,9 +16,51 @@ export interface RawFrame {
   eyeR: Vec3;
 }
 
-export type SourceId = 'livelink' | 'webcam' | 'simulator';
+export type SourceId = 'livelink' | 'webcam' | 'simulator' | 'voice';
 
-export const SOURCE_NAMES: Record<SourceId, string> = { livelink: 'iPhone', webcam: 'Camera', simulator: 'Simulator' };
+export const SOURCE_NAMES: Record<SourceId, string> = { livelink: 'iPhone', webcam: 'Camera', simulator: 'Simulator', voice: 'Voice' };
+
+/** What the voice source sets (hub/src/vtube_hub/voice.py); everything else stays at rest. */
+const VOICE_CHANNELS: readonly Blendshape[] = [
+  'jawOpen',
+  'mouthFunnel',
+  'mouthPucker',
+  'mouthStretchLeft',
+  'mouthStretchRight',
+  'mouthSmileLeft',
+  'mouthSmileRight',
+  'mouthLowerDownLeft',
+  'mouthLowerDownRight',
+  'mouthUpperUpLeft',
+  'mouthUpperUpRight',
+  'eyeBlinkLeft',
+  'eyeBlinkRight',
+  'browInnerUp',
+  'browOuterUpLeft',
+  'browOuterUpRight',
+];
+
+/**
+ * Channels a source doesn't really track. The camera's tracker (MediaPipe) has
+ * no tongue channel and barely moves the cheek, sneer, and sideways-jaw ones;
+ * the iPhone tracks all 52.
+ */
+export const UNTRACKED: Record<SourceId, ReadonlySet<Blendshape>> = {
+  livelink: new Set(),
+  webcam: new Set<Blendshape>([
+    'tongueOut',
+    'cheekPuff',
+    'cheekSquintLeft',
+    'cheekSquintRight',
+    'noseSneerLeft',
+    'noseSneerRight',
+    'jawForward',
+    'jawLeft',
+    'jawRight',
+  ]),
+  simulator: new Set(),
+  voice: new Set(BLENDSHAPES.filter((name) => !VOICE_CHANNELS.includes(name))),
+};
 
 /** Per-source fixes that bring a tracker to the shared direction conventions. */
 export interface Orientation {
@@ -131,6 +175,7 @@ export interface HubStatus {
   livelink: LiveLinkStatus;
   webcam: WebcamStatus;
   simulator: { running: boolean };
+  voice: { running: boolean; hearing: boolean };
   audio: AudioStatus;
   recording: RecordingStatus;
   clients: number;

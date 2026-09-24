@@ -337,5 +337,6 @@ export function Framing() {
   const active = config?.activeSource;
   if (active === 'webcam') return <CameraFraming />;
   if (active === 'livelink') return <PhoneFraming />;
+  if (active === 'voice') return <p className="help framing-empty">The voice source needs no camera: pick your mic in the top bar and talk.</p>;
   return <p className="help framing-empty">Framing applies to the iPhone and the camera. Switch the source to one of them.</p>;
 }

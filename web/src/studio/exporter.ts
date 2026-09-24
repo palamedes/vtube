@@ -95,6 +95,7 @@ export async function renderTake(request: ExportRequest): Promise<RenderedView[]
   const serializer = new XMLSerializer();
   const image = new Image();
 
+  const anyCharacter = views.some((view) => scene[view].character.show);
   const driver = new FaceDriver(settings);
   const track = new Track(request.frames);
 
@@ -115,14 +116,19 @@ export async function renderTake(request: ExportRequest): Promise<RenderedView[]
       if (signal.aborted) throw new DOMException('Export canceled', 'AbortError');
       const t = i / fps;
       track.advance(takeTimeAt(t, take, request.syncOffset), t, driver);
-      character.update(driver.update(t), t);
-      image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializer.serializeToString(svg))}`;
-      await image.decode();
+      const face = driver.update(t);
+      if (anyCharacter) {
+        character.update(face, t);
+        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializer.serializeToString(svg))}`;
+        await image.decode();
+      }
       for (const o of outputs) {
         const { width, height } = VIEW_SIZE[o.view];
         o.ctx.drawImage(o.background, 0, 0);
-        const pad = o.box.width * MARGIN;
-        o.ctx.drawImage(image, o.box.left - pad, o.box.top - pad, o.box.width + 2 * pad, o.box.height + 2 * pad);
+        if (scene[o.view].character.show) {
+          const pad = o.box.width * MARGIN;
+          o.ctx.drawImage(image, o.box.left - pad, o.box.top - pad, o.box.width + 2 * pad, o.box.height + 2 * pad);
+        }
         if (scene[o.view].headline.show) drawHeadline(o.ctx, scene, o.view, width, height);
         await o.source.add(t, 1 / fps);
       }

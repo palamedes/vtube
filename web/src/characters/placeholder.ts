@@ -175,9 +175,14 @@ class Anchor implements CharacterInstance {
     const rollDeg = (roll * 180) / Math.PI;
     const breathe = this.options.breathing ? Math.sin((now * 2 * Math.PI) / 4.2) : 0;
 
+    // The body shifts a little with the head right away, and turns and leans
+    // further (face.body) when a turn lasts.
+    const bodyTurn = face.body.yaw;
+    const bodyLeanDeg = (face.body.roll * 180) / Math.PI;
     this.body.setAttribute(
       'transform',
-      `translate(${f(yaw * 24)} ${f(breathe * -2)}) rotate(${f(rollDeg * 0.25)} 500 1000)`,
+      `translate(${f(yaw * 10 + bodyTurn * 90)} ${f(breathe * -2)}) rotate(${f(rollDeg * 0.1 + bodyLeanDeg * 0.6)} 500 1000) ` +
+        `translate(500 0) scale(${(1 - 0.08 * Math.min(1, Math.abs(bodyTurn) / 0.5)).toFixed(4)} 1) translate(-500 0)`,
     );
     this.head.setAttribute(
       'transform',

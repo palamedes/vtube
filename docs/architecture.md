@@ -10,7 +10,8 @@ The camera only drives. A tracker (the iPhone, or a webcam) measures the perform
 iPhone (Live Link Face) --UDP 11111--> +-----------------------+
 webcam (MediaPipe, on the hub) ------> |  hub (Python, aiohttp) | --> takes and exports on disk
 simulator (built in, for testing) ---> |  127.0.0.1:8750        |     (~/.local/share/vtube)
-USB mic (PipeWire, pw-record) -------> +-----------+-----------+
+USB mic (PipeWire, pw-record) -------> |  + the voice source   |
+                                       +-----------+-----------+
                                                    | WebSocket /ws: frames, levels, status, settings
                               +--------------------+--------------------+
                               v                                         v
@@ -30,6 +31,7 @@ Both pages run the same processing code (`web/src/shared`), so what you tune in 
 | `livelink` | The iPhone's TrueDepth camera via Live Link Face. The best mouth detail. | Always listening on UDP 11111 |
 | `webcam` | A webcam, tracked on this PC by Google's MediaPipe Face Landmarker (CPU, about 8 ms a frame). No tongue channel. | It's the active source, or `webcam.keepRunning` is on |
 | `simulator` | A synthetic performer for testing without a face. | It's the active source |
+| `voice` | The microphone alone (`voice.py`): loudness opens the jaw; formants from linear prediction tell "ah" (high first formant), "oo"/"oh" (low second formant), and "ee" (high second formant) apart. Adds blinks, emphasis nods and brow lifts, and a slow sway. Levels adapt: the quietest recent level counts as silence, the loudest recent speech as fully open. Frames are stamped with the time of the audio they describe, 60 a second. | It's the active source (and the mic is running) |
 
 One source is **active**: it drives OBS and the Studio's main views. Every running source is published and recorded, each frame tagged with its `src`, so the Studio's **Compare** view can show the same performance through two trackers side by side, live or from a take (which remembers its `primarySource`, the one that was active).
 
@@ -129,7 +131,7 @@ Timing, which is what keeps lips in sync:
 4. One Euro filtering per channel: steady when still, responsive when moving. Separate smoothing for head, eyes, blinks, brows, mouth.
 5. Head angles: neutral, gain, mirror, limit, smooth. Gaze is derived from the tuned eye-look channels.
 
-`driver.ts` wraps the pipeline: when frames stop or the face is lost, the character relaxes to rest over 0.6 s and keeps blinking on its own.
+`driver.ts` wraps the pipeline: when frames stop or the face is lost, the character relaxes to rest over 0.6 s and keeps blinking on its own (`motion.idleBlinks`; `motion.autoBlinks` adds the same blinks while tracking). It also computes `face.body`: a share (`motion.bodyFollow`) of the head's turn and lean, lagging with a 0.8 s time constant, so characters can turn and lean the body when a turn lasts while a quick glance moves only the head.
 
 Settings are stored by the hub as an opaque JSON object (`settings.json` in the data dir). The pages merge it over `DEFAULT_SETTINGS`, so partial or older settings keep working.
 
@@ -144,6 +146,9 @@ The scene is part of the settings (`settings.scene`, `web/src/shared/scene.ts`):
 
 - `character`: `x` is its center and `y` its bottom edge, as shares of the frame's width and height; `size` is the side of its square box, as a share of the frame's height. A character may draw a little past its box (a raised head); anything below the box's bottom edge is cut off, like a bust.
 - `headline`: `x`, `y` is the top-left corner; `width` is a share of the frame's width; `size` is the text height as a share of the frame's width. The box grows downward to fit the text.
+- `character.show` and `headline.show` switch each off per format.
+
+`scene.defaults` holds what each format's reset goes back to ("Save as default" writes it; it starts as `BUILTIN_LAYOUT`), and `scene.presets` is a list of named layouts, each with both formats. Slider ranges stay relative to the built-in layout, so saving a default never shifts them.
 
 The Studio preview, the OBS page, and the exporter all place things with the functions in `scene.ts`, so all three agree. The HTML frames use percentages for positions and container query units (`cqw`) for text, so a small preview scales exactly like the full-size video; the exporter draws the same geometry onto a canvas (`sceneDraw.ts`).
 

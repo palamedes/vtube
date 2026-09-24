@@ -1,4 +1,5 @@
 import { BLENDSHAPES } from './arkit';
+import { isObject, mergeInto } from './merge';
 import { DEFAULT_SCENE, sanitizeScene, type SceneSettings } from './scene';
 
 /** The performer's face at rest, subtracted so a relaxed face reads as zero. */
@@ -36,7 +37,15 @@ export interface StudioSettings {
   };
   brows: { gain: number; smoothing: number };
   mouth: { jawGain: number; smileGain: number; shapeGain: number; smoothing: number };
-  motion: { breathing: boolean; idleBlinks: boolean };
+  motion: {
+    breathing: boolean;
+    /** Blink when there's no face (tracking lost, or nobody performing). */
+    idleBlinks: boolean;
+    /** Blink on schedule even while tracking, on top of the performer's own blinks. */
+    autoBlinks: boolean;
+    /** How much of a lasting head turn or lean the body takes on (0 to 1). */
+    bodyFollow: number;
+  };
   scene: SceneSettings;
 }
 
@@ -48,30 +57,12 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   eyes: { blinkLow: 0.25, blinkHigh: 0.65, linkBlinks: false, gazeStrength: 0.35, smoothing: 0.5, blinkSmoothing: 0.1 },
   brows: { gain: 1.2, smoothing: 0.45 },
   mouth: { jawGain: 1.15, smileGain: 1, shapeGain: 1, smoothing: 0.25 },
-  motion: { breathing: true, idleBlinks: true },
+  motion: { breathing: true, idleBlinks: true, autoBlinks: false, bodyFollow: 0.5 },
   scene: DEFAULT_SCENE,
 };
 
-type Json = Record<string, unknown>;
-
-function isObject(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
-}
-
-function mergeInto<T>(defaults: T, input: unknown): T {
-  if (!isObject(defaults) || !isObject(input)) return defaults;
-  const out: Json = { ...defaults };
-  for (const [key, fallback] of Object.entries(defaults)) {
-    const value = input[key];
-    if (value === undefined || fallback === null) continue;
-    if (isObject(fallback)) out[key] = mergeInto(fallback, value);
-    else if (typeof value === typeof fallback && (typeof value !== 'number' || Number.isFinite(value))) out[key] = value;
-  }
-  return out as T;
 }
 
 function parseNeutral(value: unknown): NeutralPose | null {

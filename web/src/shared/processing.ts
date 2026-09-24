@@ -15,12 +15,21 @@ export interface FaceState {
   bs: Float32Array;
   head: { yaw: number; pitch: number; roll: number };
   gaze: { x: number; y: number };
+  /** How far the body has turned and leaned (radians): it follows lasting head turns, slowly (see FaceDriver). */
+  body: { yaw: number; roll: number };
 }
 
 const N = BLENDSHAPES.length;
 
 export function createFaceState(): FaceState {
-  return { t: 0, present: false, bs: new Float32Array(N), head: { yaw: 0, pitch: 0, roll: 0 }, gaze: { x: 0, y: 0 } };
+  return {
+    t: 0,
+    present: false,
+    bs: new Float32Array(N),
+    head: { yaw: 0, pitch: 0, roll: 0 },
+    gaze: { x: 0, y: 0 },
+    body: { yaw: 0, roll: 0 },
+  };
 }
 
 export function copyFaceState(from: FaceState, to: FaceState): void {
@@ -29,6 +38,7 @@ export function copyFaceState(from: FaceState, to: FaceState): void {
   to.bs.set(from.bs);
   Object.assign(to.head, from.head);
   Object.assign(to.gaze, from.gaze);
+  Object.assign(to.body, from.body);
 }
 
 /** out = a + (b - a) * k */
@@ -39,6 +49,8 @@ export function lerpFaceState(a: FaceState, b: FaceState, k: number, out: FaceSt
   out.head.roll = a.head.roll + (b.head.roll - a.head.roll) * k;
   out.gaze.x = a.gaze.x + (b.gaze.x - a.gaze.x) * k;
   out.gaze.y = a.gaze.y + (b.gaze.y - a.gaze.y) * k;
+  out.body.yaw = a.body.yaw + (b.body.yaw - a.body.yaw) * k;
+  out.body.roll = a.body.roll + (b.body.roll - a.body.roll) * k;
 }
 
 export const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));

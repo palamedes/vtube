@@ -5,6 +5,8 @@
  * exactly what gets recorded.
  */
 
+import { isObject, mergeInto } from './merge';
+
 export type ViewId = 'wide' | 'tall';
 export type Background = 'set' | 'green' | 'color' | 'transparent';
 
@@ -20,20 +22,44 @@ export const VIEW_NAMES: Record<ViewId, string> = { wide: '16:9 · YouTube', tal
 
 export interface ViewScene {
   /** x: center (share of frame width); y: bottom edge (share of frame height); size: height (share of frame height). */
-  character: { x: number; y: number; size: number };
+  character: { show: boolean; x: number; y: number; size: number };
   /** x, y: top-left corner; width: share of frame width; size: headline text height, share of frame width. */
   headline: { show: boolean; x: number; y: number; width: number; size: number };
 }
 
-export interface SceneSettings {
+/** Where things sit in both formats, and whether they show. */
+export interface SceneLayout {
+  wide: ViewScene;
+  tall: ViewScene;
+}
+
+/** A layout saved under a name, to switch back to later. */
+export interface LayoutPreset extends SceneLayout {
+  name: string;
+}
+
+export interface SceneSettings extends SceneLayout {
   character: string;
   background: Background;
   color: string;
   kicker: string;
   headline: string;
-  wide: ViewScene;
-  tall: ViewScene;
+  /** What each format's reset returns to ("Save as default" sets it). */
+  defaults: SceneLayout;
+  presets: LayoutPreset[];
 }
+
+/** The layout before anything is saved. Slider ranges are relative to it too. */
+export const BUILTIN_LAYOUT: SceneLayout = {
+  wide: {
+    character: { show: true, x: 0.69, y: 1, size: 0.94 },
+    headline: { show: true, x: 0.04, y: 0.74, width: 0.48, size: 0.021 },
+  },
+  tall: {
+    character: { show: true, x: 0.5, y: 0.62, size: 0.5625 },
+    headline: { show: true, x: 0.06, y: 0.645, width: 0.88, size: 0.05 },
+  },
+};
 
 export const DEFAULT_SCENE: SceneSettings = {
   character: 'placeholder',
@@ -41,22 +67,18 @@ export const DEFAULT_SCENE: SceneSettings = {
   color: '#1d2b55',
   kicker: 'Tonight',
   headline: 'Your headline goes here',
-  wide: {
-    character: { x: 0.69, y: 1, size: 0.94 },
-    headline: { show: true, x: 0.04, y: 0.74, width: 0.48, size: 0.021 },
-  },
-  tall: {
-    character: { x: 0.5, y: 0.62, size: 0.5625 },
-    headline: { show: true, x: 0.06, y: 0.645, width: 0.88, size: 0.05 },
-  },
+  ...BUILTIN_LAYOUT,
+  defaults: BUILTIN_LAYOUT,
+  presets: [],
 };
 
 const BACKGROUNDS: Background[] = ['set', 'green', 'color', 'transparent'];
+export const MAX_PRESETS = 40;
 
-/** Fix values that type-check but make no sense (called after the generic settings merge). */
-export function sanitizeScene(scene: SceneSettings): SceneSettings {
-  const clampView = (view: ViewScene): ViewScene => ({
+function clampView(view: ViewScene): ViewScene {
+  return {
     character: {
+      show: view.character.show,
       x: clamp(view.character.x, -0.5, 1.5),
       y: clamp(view.character.y, 0, 2),
       size: clamp(view.character.size, 0.05, 3),
@@ -68,7 +90,33 @@ export function sanitizeScene(scene: SceneSettings): SceneSettings {
       width: clamp(view.headline.width, 0.1, 1),
       size: clamp(view.headline.size, 0.005, 0.2),
     },
-  });
+  };
+}
+
+export function cleanPresetName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').slice(0, 40);
+}
+
+/** Presets as stored: whatever parses, fixed up; one per name (the last wins). */
+function sanitizePresets(value: unknown): LayoutPreset[] {
+  if (!Array.isArray(value)) return [];
+  const byName = new Map<string, LayoutPreset>();
+  for (const item of value) {
+    if (!isObject(item) || typeof item.name !== 'string') continue;
+    const name = cleanPresetName(item.name);
+    if (!name) continue;
+    byName.delete(name.toLowerCase());
+    byName.set(name.toLowerCase(), {
+      name,
+      wide: clampView(mergeInto(BUILTIN_LAYOUT.wide, item.wide)),
+      tall: clampView(mergeInto(BUILTIN_LAYOUT.tall, item.tall)),
+    });
+  }
+  return [...byName.values()].slice(-MAX_PRESETS);
+}
+
+/** Fix values that type-check but make no sense (called after the generic settings merge). */
+export function sanitizeScene(scene: SceneSettings): SceneSettings {
   return {
     ...scene,
     background: BACKGROUNDS.includes(scene.background) ? scene.background : DEFAULT_SCENE.background,
@@ -77,7 +125,40 @@ export function sanitizeScene(scene: SceneSettings): SceneSettings {
     headline: scene.headline.slice(0, 200),
     wide: clampView(scene.wide),
     tall: clampView(scene.tall),
+    defaults: { wide: clampView(scene.defaults.wide), tall: clampView(scene.defaults.tall) },
+    presets: sanitizePresets(scene.presets),
   };
+}
+
+/** The same layout, to within the sliders' precision. */
+export function sameView(a: ViewScene, b: ViewScene): boolean {
+  const close = (x: number, y: number) => Math.abs(x - y) < 1e-4;
+  return (
+    a.character.show === b.character.show &&
+    close(a.character.x, b.character.x) &&
+    close(a.character.y, b.character.y) &&
+    close(a.character.size, b.character.size) &&
+    a.headline.show === b.headline.show &&
+    close(a.headline.x, b.headline.x) &&
+    close(a.headline.y, b.headline.y) &&
+    close(a.headline.width, b.headline.width) &&
+    close(a.headline.size, b.headline.size)
+  );
+}
+
+/** The saved preset that matches the current layout in both formats, if any. */
+export function matchingPreset(scene: SceneSettings): LayoutPreset | null {
+  return scene.presets.find((p) => sameView(p.wide, scene.wide) && sameView(p.tall, scene.tall)) ?? null;
+}
+
+/** Presets with the current layout saved as `name`, replacing one of the same name (any case). */
+export function withPreset(scene: SceneSettings, name: string): LayoutPreset[] {
+  const clean = cleanPresetName(name);
+  if (!clean) return scene.presets;
+  const preset: LayoutPreset = { name: clean, wide: structuredClone(scene.wide), tall: structuredClone(scene.tall) };
+  const at = scene.presets.findIndex((p) => p.name.toLowerCase() === clean.toLowerCase());
+  if (at >= 0) return scene.presets.map((p, i) => (i === at ? preset : p));
+  return scene.presets.length >= MAX_PRESETS ? scene.presets : [...scene.presets, preset];
 }
 
 function clamp(x: number, lo: number, hi: number): number {

@@ -133,8 +133,10 @@ class AudioCapture:
         self,
         on_level: Callable[[float, float], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
+        on_chunk: Callable[[np.ndarray, float], None] | None = None,
     ) -> None:
         self._on_level = on_level
+        self._on_chunk = on_chunk  # every chunk and the time it arrived, for the voice source
         self._clock = clock
         self._device: str | None = None
         self._resolved: str | None = None
@@ -236,6 +238,8 @@ class AudioCapture:
                     self._running = True
                     self._error = None
                 self._record(chunk, first)
+                if self._on_chunk:
+                    self._on_chunk(chunk, now)
                 chunks += 1
                 sum_sq += float(np.dot(chunk, chunk))
                 peak = max(peak, float(np.max(np.abs(chunk))))

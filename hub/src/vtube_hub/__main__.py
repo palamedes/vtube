@@ -75,7 +75,11 @@ def main(argv: list[str] | None = None) -> None:
     data_dir = args.data_dir.expanduser()
     data_dir.mkdir(parents=True, exist_ok=True)
     hub: Hub
-    audio = None if args.no_audio else AudioCapture(on_level=lambda rms, peak: hub.on_level(rms, peak))
+    audio = (
+        None
+        if args.no_audio
+        else AudioCapture(on_level=lambda rms, peak: hub.on_level(rms, peak), on_chunk=lambda chunk, t: hub.on_audio(chunk, t))
+    )
     hub = Hub(
         data_dir=data_dir,
         web_dist=args.web_dist,

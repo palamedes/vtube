@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BS, GROUPS, type BlendshapeGroup } from '../../shared/arkit';
+import { SOURCE_NAMES, UNTRACKED } from '../../shared/protocol';
 import { store } from '../store';
-import { useTick } from '../useStudio';
+import { useStudio, useTick } from '../useStudio';
 
 const ROW = 13;
 const GROUP_GAP = 18;
@@ -24,9 +25,13 @@ const deg = (radians: number) => `${((radians * 180) / Math.PI).toFixed(1)}°`;
 /**
  * Every channel, live: the thin grey line is the raw value from the phone,
  * the colored bar is what the character receives after tuning. The header
- * shows head angles (raw from the phone vs tuned) and gaze.
+ * shows head angles (raw from the phone vs tuned) and gaze. Channels the
+ * source can't track are dimmed.
  */
 export function Monitor() {
+  const { config, player } = useStudio();
+  const source = player?.primary ?? config?.activeSource ?? 'livelink';
+  const untracked = UNTRACKED[source];
   const canvas = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
@@ -86,8 +91,15 @@ export function Monitor() {
           for (const name of group.names) {
             const i = BS[name];
             const value = face.bs[i];
-            ctx.fillStyle = '#9aa0b4';
+            const dim = untracked.has(name);
+            ctx.fillStyle = dim ? '#4f5466' : '#9aa0b4';
             ctx.fillText(name, x0, y + ROW / 2);
+            if (dim) {
+              ctx.fillStyle = '#1e2029';
+              ctx.fillRect(barX, y + 2, barW, ROW - 4);
+              y += ROW;
+              continue;
+            }
             ctx.fillStyle = '#262833';
             ctx.fillRect(barX, y + 2, barW, ROW - 4);
             ctx.fillStyle = color;
@@ -104,7 +116,7 @@ export function Monitor() {
           }
         }
       });
-    }, [width]),
+    }, [width, untracked]),
   );
 
   return (
@@ -112,6 +124,10 @@ export function Monitor() {
       <canvas ref={canvas} />
       <p className="monitor-key">
         <span className="key-raw" /> raw from the source <span className="key-tuned" /> after tuning (what the character gets)
+        {untracked.size > 0 &&
+          (source === 'voice'
+            ? ' · dimmed: the voice source only moves the mouth, blinks, and brows'
+            : ` · dimmed: the ${SOURCE_NAMES[source]} can't track these (the iPhone can)`)}
       </p>
     </div>
   );

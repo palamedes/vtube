@@ -1,6 +1,6 @@
 # vtube
 
-Be a cartoon on camera while keeping your own voice. An iPhone (or a plain webcam) reads your face, a small hub on your PC turns that into animation data, and a character performs it: live in OBS, or later from a recorded take. Built for recording news reads and book readings as a character, and posting them as a 16:9 video plus vertical Shorts, Reels, and TikToks.
+Be a cartoon on camera while keeping your own voice. An iPhone (or a plain webcam, or just your microphone) reads your face, a small hub on your PC turns that into animation data, and a character performs it: live in OBS, or later from a recorded take. Built for recording news reads and book readings as a character, and posting them as a 16:9 video plus vertical Shorts, Reels, and TikToks.
 
 Your voice is always your own. AI is never used to speak, and nothing here invents your performance: the phone measures your face, and the character follows it.
 
@@ -9,7 +9,7 @@ Your voice is always your own. AI is never used to speak, and nothing here inven
 ## What you need
 
 - Linux with PipeWire (developed on CachyOS with KDE Plasma on Wayland)
-- A face tracker: an iPhone with Face ID running [Live Link Face](https://apps.apple.com/us/app/live-link-face/id1495370836) (free, best mouth detail), and/or any webcam (tracked on your PC with Google's MediaPipe)
+- A face tracker: an iPhone with Face ID running [Live Link Face](https://apps.apple.com/us/app/live-link-face/id1495370836) (free, best mouth detail), and/or any webcam (tracked on your PC with Google's MediaPipe). Or neither: the Voice source moves the mouth from your microphone alone.
 - A USB microphone
 - [uv](https://docs.astral.sh/uv/) and Node.js
 - ffmpeg, and Chrome (or another browser with WebCodecs), for exporting videos
@@ -44,6 +44,12 @@ Pick **Camera** as the source. The first time, the hub downloads Google's face m
 
 The webcam tracks head, blinks, brows, and the jaw well; the iPhone's depth sensor is better at mouth shapes (pucker, "oo", lip stretch). To see the difference, keep the camera tracking while the iPhone is active and switch the preview to **Compare**: the same performance, both trackers, side by side, live or from a take.
 
+## Use just your voice
+
+Pick **Voice** as the source and talk: the hub listens to the microphone you picked in the top bar and moves the mouth from the sound. Loudness opens the jaw, and the shape of each vowel decides the mouth: wide for "ee", round for "oo" and "oh", open for "ah". Silence closes it. It adds natural blinks, small nods and brow lifts when you stress a word, and a slow sway, so the character doesn't look frozen. Levels adapt to your room and mic on their own.
+
+It only knows your mouth: brows, eyes, and head follow the voice rather than your face, so the camera or the iPhone still gives the more expressive performance. The Tracking tab dims the channels the voice source doesn't set.
+
 ## Connect the iPhone
 
 1. In Live Link Face: settings (gear) → **Live Link** → **Add Target**, and enter this PC's LAN address with port **11111**. The Studio's **Setup** panel lists your addresses with copy buttons.
@@ -57,10 +63,10 @@ The Setup panel also shows what the hub is receiving (packets per second, droppe
 ## The Studio
 
 - **Preview:** the character in a 16:9 frame and a 9:16 frame side by side, laid out exactly as the exports and OBS show them. **Compare** puts two trackers side by side; **Framing** helps place the camera or phone.
-- **Scene** (the first tab below the preview): the character, the background (a mock news set, green, a solid color, or none), and the headline with its small kicker line. Each format has its own sliders for where the character stands, how big it is, and where the headline sits, plus a switch to hide the headline. A dot next to a changed slider resets it.
-- **Tracking** (the second tab): all 52 face channels live. A thin line shows what the tracker sent; a bar shows what the character receives after tuning.
+- **Scene** (the first tab below the preview): the character, the background (a mock news set, green, a solid color, or none), and the headline with its small kicker line. Each format has its own sliders for where the character stands, how big it is, and where the headline sits, and switches to show or hide the character and the headline. **Save as default** makes a format's layout what its reset button (⊘) and the dots beside changed sliders go back to. **Layout presets** save where everything sits in both formats under a name; click one to switch back to it.
+- **Tracking** (the second tab): all 52 face channels live. A thin line shows what the tracker sent; a bar shows what the character receives after tuning. Channels the current source can't track are dimmed: the camera, for one, can't see cheek puffs, sneers, sideways jaw, or the tongue, which the iPhone can.
 - **Export** (the third tab): turns a take into finished videos. See below.
-- **Tuning:** check directions and capture your neutral face; set strength and smoothing for head, eyes, brows, and mouth; tame your gaze so reading doesn't look shifty; mirror; idle breathing and blinks. Changes apply instantly, everywhere, including OBS.
+- **Tuning:** check directions and capture your neutral face; set strength and smoothing for head, eyes, brows, and mouth; tame your gaze so reading doesn't look shifty; mirror. **Idle life** adds breathing, blinks when there's no face (and, if you like, while tracking too, for a tracker that misses your blinks), linked blinks, and how much the body follows a head turn you hold (quick glances move only the head). Changes apply instantly, everywhere, including OBS.
 - **Takes:** record your voice and face data together, play them back, scrub, and re-tune while they play. **Face sync** nudges the face against the voice, and **Auto-sync** measures the delay for you from your speech.
 
 ## Export
