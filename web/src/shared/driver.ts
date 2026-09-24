@@ -1,7 +1,7 @@
 import { BS } from './arkit';
 import { copyFaceState, createFaceState, FacePipeline, lerpFaceState, smoothstep, type FaceState } from './processing';
 import type { RawFrame } from './protocol';
-import { DEFAULT_SETTINGS, type FaceSettings } from './settings';
+import { DEFAULT_SETTINGS, type StudioSettings } from './settings';
 
 /** Frames older than this mean tracking stopped (phone asleep, Wi-Fi hiccup, hub gone). */
 const STALE_AFTER = 0.5;
@@ -36,16 +36,16 @@ export class FaceDriver {
   readonly face = createFaceState();
   private readonly pipeline: FacePipeline;
   private readonly relaxFrom = createFaceState();
-  private settings: FaceSettings;
+  private settings: StudioSettings;
   private lastFrameAt = -Infinity;
   private lostAt: number | null = null;
 
-  constructor(settings: FaceSettings = DEFAULT_SETTINGS) {
+  constructor(settings: StudioSettings = DEFAULT_SETTINGS) {
     this.settings = settings;
     this.pipeline = new FacePipeline(settings);
   }
 
-  setSettings(settings: FaceSettings): void {
+  setSettings(settings: StudioSettings): void {
     this.settings = settings;
     this.pipeline.setSettings(settings);
   }

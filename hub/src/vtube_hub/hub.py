@@ -15,6 +15,7 @@ from pathlib import Path
 from . import __version__
 from .audio import AudioBackend
 from .bus import Bus
+from .exports import ExportStore
 from .frames import Frame, Orientation, orient
 from .livelink import LiveLinkReceiver
 from .netinfo import active_firewalls, lan_addresses
@@ -98,6 +99,7 @@ class Hub:
         self.epoch = clock()
         self.bus = Bus()
         self.takes = TakeStore(data_dir / "takes")
+        self.exports = ExportStore(data_dir / "exports")
         self._settings_file = JsonFile(data_dir / "settings.json", {})
         self._config_file = JsonFile(data_dir / "hub.json", DEFAULT_CONFIG)
         self.settings: dict = self._settings_file.load()

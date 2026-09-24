@@ -17,10 +17,29 @@ import {
   type TakeSummary,
   type WebcamConfig,
 } from '../shared/protocol';
-import { DEFAULT_SETTINGS, mergeSettings, type FaceSettings } from '../shared/settings';
+import { DEFAULT_SETTINGS, mergeSettings, type StudioSettings } from '../shared/settings';
+import type { ViewId } from '../shared/scene';
 import { estimateSyncOffset } from './autosync';
 import { sampleOf, solveDirections, STEPS, type Finding, type Sample, type StepId } from './directions';
+import { renderTake, type ExportQuality } from './exporter';
 import { Player } from './player';
+
+/** A finished export on disk (served by the hub). */
+export interface ExportFile {
+  take: string;
+  file: string;
+  url: string;
+  size: number;
+  path: string;
+  modified: number;
+}
+
+export type ExportState =
+  | { phase: 'rendering'; done: number; total: number; startedAt: number }
+  | { phase: 'saving'; startedAt: number }
+  | { phase: 'done'; files: ExportFile[]; seconds: number }
+  | { phase: 'error'; message: string }
+  | { phase: 'canceled' };
 
 export interface PlayerView {
   take: TakeSummary;
@@ -55,7 +74,7 @@ export interface Snapshot {
   hub: HubState | null;
   config: HubConfig | null;
   status: HubStatus | null;
-  settings: FaceSettings;
+  settings: StudioSettings;
   takes: TakeSummary[];
   recording: RecordingStatus & { startedLocal?: number };
   audioDevices: AudioSource[];
@@ -66,6 +85,8 @@ export interface Snapshot {
   directions: DirectionsPhase;
   /** Sources with face data right now (live) or in the open take: what Compare can show. */
   sources: SourceId[];
+  exporting: ExportState | null;
+  exports: ExportFile[];
   notice: { kind: 'error' | 'info'; text: string } | null;
 }
 
@@ -105,6 +126,8 @@ export class StudioStore {
     neutral: { phase: 'idle' },
     directions: { phase: 'idle' },
     sources: [],
+    exporting: null,
+    exports: [],
     notice: null,
   };
   private readonly listeners = new Set<() => void>();
@@ -115,6 +138,7 @@ export class StudioStore {
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
   private lastPlayerPublish = 0;
   private lastSourcesCheck = 0;
+  private exportAbort: AbortController | null = null;
 
   constructor() {
     const { client } = this;
@@ -262,7 +286,7 @@ export class StudioStore {
 
   // Tuning
 
-  updateSettings(mutate: (draft: FaceSettings) => void): void {
+  updateSettings(mutate: (draft: StudioSettings) => void): void {
     const next = structuredClone(this.snapshot.settings);
     mutate(next);
     this.drivers.forEach((driver) => driver.setSettings(next));
@@ -278,9 +302,10 @@ export class StudioStore {
     if (this.snapshot.settings === sent) this.settingsDirty = false;
   }
 
+  /** Reset the face tuning; the neutral face and the scene are kept. */
   resetSettings(): void {
-    const neutral = this.snapshot.settings.neutral;
-    this.updateSettings((draft) => Object.assign(draft, structuredClone(DEFAULT_SETTINGS), { neutral }));
+    const { neutral, scene } = this.snapshot.settings;
+    this.updateSettings((draft) => Object.assign(draft, structuredClone(DEFAULT_SETTINGS), { neutral, scene }));
   }
 
   /** Collect the active source's frames for `ms` milliseconds. */
@@ -423,6 +448,8 @@ export class StudioStore {
     this.drivers.forEach((driver) => driver.reset());
     this.publishPlayer();
     this.publishSources(clock());
+    if (!this.exportAbort) this.set({ exporting: null });
+    void this.refreshExports();
   }
 
   closeTake(): void {
@@ -487,6 +514,69 @@ export class StudioStore {
     }
     await this.setSyncOffset(result.offset);
     this.notify('info', `Face data runs ${Math.round(result.offset * 1000)} ms behind the voice. Applied (${match}).`);
+  }
+
+  // Export
+
+  async refreshExports(): Promise<void> {
+    const take = this.player?.take.id;
+    const files = await this.attempt(() => api<ExportFile[]>('GET', take ? `/api/exports?take=${take}` : '/api/exports'));
+    if (files) this.set({ exports: files });
+  }
+
+  /** Render the open take to MP4 in each chosen format; the hub adds the voice and saves the files. */
+  async exportTake(options: { views: ViewId[]; fps: number; quality: ExportQuality }): Promise<void> {
+    const player = this.player;
+    const track = player?.primaryTrack;
+    if (!player || !track || this.exportAbort) return;
+    player.pause();
+    this.publishPlayer();
+    const abort = new AbortController();
+    this.exportAbort = abort;
+    const startedAt = clock();
+    let lastPublish = 0;
+    this.set({ exporting: { phase: 'rendering', done: 0, total: 1, startedAt } });
+    try {
+      const rendered = await renderTake({
+        take: player.take,
+        frames: track.frames,
+        settings: this.snapshot.settings,
+        syncOffset: player.syncOffset,
+        views: options.views,
+        fps: options.fps,
+        quality: options.quality,
+        signal: abort.signal,
+        onProgress: (done, total) => {
+          if (clock() - lastPublish < 0.2 && done < total) return;
+          lastPublish = clock();
+          this.set({ exporting: { phase: 'rendering', done, total, startedAt } });
+        },
+      });
+      this.set({ exporting: { phase: 'saving', startedAt } });
+      const files: ExportFile[] = [];
+      for (const result of rendered) {
+        const response = await fetch(`/api/takes/${player.take.id}/export?view=${result.view}&codec=${result.codec}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'video/mp4' },
+          body: new Blob([result.data], { type: 'video/mp4' }),
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error((body as { error?: string } | null)?.error ?? `saving failed (${response.status})`);
+        files.push(body as ExportFile);
+      }
+      this.set({ exporting: { phase: 'done', files, seconds: clock() - startedAt } });
+      this.notify('info', `Exported ${files.length === 1 ? files[0].file : `${files.length} videos`}.`);
+      void this.refreshExports();
+    } catch (error) {
+      if (abort.signal.aborted) this.set({ exporting: { phase: 'canceled' } });
+      else this.set({ exporting: { phase: 'error', message: error instanceof Error ? error.message : String(error) } });
+    } finally {
+      this.exportAbort = null;
+    }
+  }
+
+  cancelExport(): void {
+    this.exportAbort?.abort();
   }
 
   async renameTake(id: string, name: string): Promise<void> {

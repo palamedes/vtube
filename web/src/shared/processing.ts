@@ -1,7 +1,7 @@
 import { BLENDSHAPES, BS, MIRROR_PAIRS } from './arkit';
 import { OneEuroFilter } from './oneEuro';
 import type { RawFrame } from './protocol';
-import { DEFAULT_SETTINGS, type FaceSettings } from './settings';
+import { DEFAULT_SETTINGS, type StudioSettings } from './settings';
 
 /**
  * The face a character draws: tuned, smoothed values in character space.
@@ -79,17 +79,17 @@ const HEAD_BETA = 1.5;
 /** Raw frames in, FaceState out. One instance per stream: the filters remember history. */
 export class FacePipeline {
   readonly state = createFaceState();
-  private settings: FaceSettings = DEFAULT_SETTINGS;
+  private settings: StudioSettings = DEFAULT_SETTINGS;
   private readonly filters = BLENDSHAPES.map(() => new OneEuroFilter());
   private readonly headFilters = [new OneEuroFilter(), new OneEuroFilter(), new OneEuroFilter()];
   private readonly values = new Float32Array(N);
   private lastT: number | null = null;
 
-  constructor(settings: FaceSettings = DEFAULT_SETTINGS) {
+  constructor(settings: StudioSettings = DEFAULT_SETTINGS) {
     this.setSettings(settings);
   }
 
-  setSettings(settings: FaceSettings): void {
+  setSettings(settings: StudioSettings): void {
     this.settings = settings;
     const cutoff: Record<Group, number> = {
       blink: cutoffFor(settings.eyes.blinkSmoothing),

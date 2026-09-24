@@ -1,7 +1,10 @@
 """HTTP and WebSocket API, plus the built Studio and character pages.
 
     GET  /                          the Studio
-    GET  /render                    a character page for OBS (see web/src/render)
+    GET  /render                    a character page for OBS (see web/src/render):
+                                    ?view=wide|tall places it in the scene, &full=1
+                                    adds the background and headline
+    GET  /sheet?character=id        a character in a grid of fixed poses
     GET  /ws?client=studio|render   WebSocket: hello, frame, level, camera, status,
                                     settings, config, recording, takes messages
     GET  /api/state                 everything the Studio needs on load
@@ -20,6 +23,10 @@
     GET  /api/camera/controls       zoom, pan, tilt, low-light frame rate, brightness
     PUT  /api/camera/controls       {"zoom_absolute": 150, ...}
     GET  /api/camera/preview.mjpg   what the camera sees, ~15 fps, for framing
+    POST /api/takes/{id}/export?view=wide|tall   body: the rendered video (MP4); the hub
+                                    adds the take's voice and saves the export
+    GET  /api/exports[?take=id]     finished exports
+    GET  /api/exports/{take}/{file} download one
 """
 
 from __future__ import annotations
@@ -28,14 +35,18 @@ import asyncio
 import ipaddress
 import json
 import logging
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from aiohttp import WSMsgType, web
 
 from .audio import list_sources
+from .exports import VIEW_SUFFIX, ExportError
 from .hub import Conflict, Hub
 from .webcam import list_cameras, read_controls, write_control
+
+MAX_UPLOAD = 4 * 1024**3  # a rendered export; generous for long takes at high quality
 
 log = logging.getLogger(__name__)
 
@@ -97,6 +108,8 @@ async def json_errors(request: web.Request, handler):
         return web.json_response({"error": str(exc)}, status=400)
     except Conflict as exc:
         return web.json_response({"error": str(exc)}, status=409)
+    except ExportError as exc:
+        return web.json_response({"error": str(exc)}, status=500)
     except KeyError:
         return web.json_response({"error": "not found"}, status=404)
 
@@ -136,6 +149,10 @@ def create_app(hub: Hub) -> web.Application:
     @routes.get("/render")
     async def render(request: web.Request) -> web.StreamResponse:
         return _page(hub, "render.html")
+
+    @routes.get("/sheet")
+    async def sheet(request: web.Request) -> web.StreamResponse:
+        return _page(hub, "sheet.html")
 
     @routes.get("/assets/{path:.+}")
     async def assets(request: web.Request) -> web.StreamResponse:
@@ -251,6 +268,48 @@ def create_app(hub: Hub) -> web.Application:
         except ConnectionResetError:
             pass  # the Studio closed the preview
         return response
+
+    @routes.post("/api/takes/{id}/export")
+    async def export_take(request: web.Request) -> web.Response:
+        take_id = request.match_info["id"]
+        meta = hub.takes.read(take_id)
+        view = request.query.get("view", "")
+        if view not in VIEW_SUFFIX:
+            raise ValueError("view must be wide or tall")
+        folder = hub.exports.root / take_id
+        folder.mkdir(parents=True, exist_ok=True)
+        upload = folder / f".upload-{view}-{uuid.uuid4().hex}.tmp"
+        try:
+            size = 0
+            with upload.open("wb") as out:
+                async for chunk in request.content.iter_chunked(1 << 20):
+                    size += len(chunk)
+                    if size > MAX_UPLOAD:
+                        raise ValueError("the upload is too large")
+                    out.write(chunk)
+            if size == 0:
+                raise ValueError("the upload is empty")
+            result = await hub.exports.finish(take_id, hub.takes.path(take_id), meta, view, upload)
+        finally:
+            upload.unlink(missing_ok=True)
+        log.info("exported %s (%.1f MB)", result["path"], result["size"] / 1e6)
+        return web.json_response(result)
+
+    @routes.get("/api/exports")
+    async def list_exports(request: web.Request) -> web.Response:
+        take_id = request.query.get("take")
+        if take_id is not None:
+            hub.takes.path(take_id)  # validates the id
+        return web.json_response(hub.exports.list(take_id))
+
+    @routes.get("/api/exports/{take}/{file}")
+    async def download_export(request: web.Request) -> web.StreamResponse:
+        take_id = request.match_info["take"]
+        hub.takes.path(take_id)  # validates the id
+        path = hub.exports.file(take_id, request.match_info["file"])
+        return web.FileResponse(
+            path, headers={"Content-Type": "video/mp4", "Content-Disposition": f'attachment; filename="{path.name}"'}
+        )
 
     @routes.get("/api/takes/{id}/{file}")
     async def take_file(request: web.Request) -> web.StreamResponse:

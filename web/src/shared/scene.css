@@ -1,0 +1,30 @@
+/* Scene elements, shared by the Studio preview and the OBS page. Positions and
+   sizes are set inline from shared/scene.ts; text sizes use container query
+   units, so the frame (or page) needs `container-type: size`. The line heights
+   and letter spacing match LINE_HEIGHT, KICKER_LINE_HEIGHT, and KICKER_TRACKING
+   there, which the exporter draws with. */
+
+.scene-character {
+  position: absolute;
+}
+
+.scene-headline {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: rgba(8, 12, 28, 0.9);
+  border-left: 0 solid #d64545;
+  color: #fff;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+
+.scene-headline .kicker {
+  color: #ff8a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+}

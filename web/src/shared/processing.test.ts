@@ -4,7 +4,7 @@ import { FaceDriver } from './driver';
 import { OneEuroFilter } from './oneEuro';
 import { cutoffFor, FacePipeline } from './processing';
 import type { RawFrame } from './protocol';
-import { DEFAULT_SETTINGS, mergeSettings, type FaceSettings } from './settings';
+import { DEFAULT_SETTINGS, mergeSettings, type StudioSettings } from './settings';
 
 function frame(t: number, values: Partial<Record<(typeof BLENDSHAPES)[number], number>> = {}, head: [number, number, number] = [0, 0, 0]): RawFrame {
   const bs = BLENDSHAPES.map((name) => values[name] ?? 0);
@@ -12,7 +12,7 @@ function frame(t: number, values: Partial<Record<(typeof BLENDSHAPES)[number], n
 }
 
 /** Settings with smoothing off, so values pass straight through. */
-function raw(overrides: (s: FaceSettings) => void = () => {}): FaceSettings {
+function raw(overrides: (s: StudioSettings) => void = () => {}): StudioSettings {
   const s = structuredClone(DEFAULT_SETTINGS);
   s.head.smoothing = 0;
   s.eyes.smoothing = 0;

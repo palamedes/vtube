@@ -109,19 +109,27 @@ export function Setup({ onClose }: { onClose: () => void }) {
         </section>
 
         <section>
-          <h3>OBS</h3>
+          <h3>OBS (for going live)</h3>
+          <p className="help">For recorded videos you don't need OBS: open a take and use the Export tab.</p>
           <ol>
             <li>
-              Add a <strong>Browser</strong> source with this URL. Its background is transparent, so no chroma key is needed:
+              Add a <strong>Browser</strong> source per canvas. It shows your Studio scene: the character placed as in the Scene tab,
+              the headline, and the background.
               <div>
-                <Copy text={`${origin}/render`} />
+                16:9 canvas, 1920 × 1080: <Copy text={`${origin}/render?view=wide&full=1`} />
+              </div>
+              <div>
+                9:16 canvas (Aitum Vertical), 1080 × 1920: <Copy text={`${origin}/render?view=tall&full=1`} />
               </div>
             </li>
-            <li>Set the source to 1080 × 1080 and place it: to one side on the 16:9 canvas, and in the top half of the 9:16 canvas (Aitum Vertical).</li>
-            <li>Add your mic (the same RODE) as the audio source in OBS. The character page makes no sound.</li>
+            <li>
+              To build the rest of the scene in OBS instead, drop <code>&amp;full=1</code>: you get just the character, placed the same
+              way, on a transparent background.
+            </li>
+            <li>Add your mic (the same RODE) as the audio source in OBS. These pages make no sound.</li>
           </ol>
           <p className="help small">
-            Add <code>?bg=checker</code> to the URL to see the transparency in a normal browser.
+            Add <code>&amp;bg=checker</code> to a URL to see the transparency in a normal browser.
           </p>
         </section>
       </div>

@@ -1,4 +1,6 @@
 import asyncio
+import shutil
+import subprocess
 
 import pytest
 from aiohttp import WSMsgType, WSServerHandshakeError
@@ -158,3 +160,53 @@ async def test_bad_config_is_rejected(aiohttp_client, hub):
     response = await client.put("/api/config", json={"audioDevice": "alsa_input.test"})
     assert (await response.json())["audioDevice"] == "alsa_input.test"
     assert hub.audio.device == "alsa_input.test"
+
+
+needs_ffmpeg = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="needs ffmpeg")
+
+
+@needs_ffmpeg
+async def test_export_adds_the_voice(aiohttp_client, hub, tmp_path):
+    client = await aiohttp_client(create_app(hub))
+    await client.put("/api/config", json={"activeSource": "simulator"})
+    await client.post("/api/record/start", json={"name": "Export test"})
+    await asyncio.sleep(0.3)
+    meta = await (await client.post("/api/record/stop")).json()
+
+    # A short H.264 clip stands in for the Studio's render.
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=128x72:rate=30:duration=0.5",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+        check=True,
+    )
+    response = await client.post(
+        f"/api/takes/{meta['id']}/export?view=wide", data=clip.read_bytes(), headers={"Content-Type": "video/mp4"}
+    )
+    assert response.status == 200, await response.text()
+    result = await response.json()
+    assert result["file"] == "export-test-16x9.mp4"
+
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "csv=p=0", result["path"]],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    assert sorted(probe) == ["aac,audio", "h264,video"]
+
+    listing = await (await client.get(f"/api/exports?take={meta['id']}")).json()
+    assert [f["file"] for f in listing] == ["export-test-16x9.mp4"]
+    download = await client.get(result["url"])
+    assert download.status == 200 and "attachment" in download.headers["Content-Disposition"]
+    assert not list((hub.exports.root / meta["id"]).glob(".upload-*"))  # the upload was cleaned up
+
+    assert (await client.post(f"/api/takes/{meta['id']}/export?view=square", data=b"x")).status == 400
+    assert (await client.post(f"/api/takes/{meta['id']}/export?view=tall", data=b"")).status == 400
+    assert (await client.get(f"/api/exports/{meta['id']}/nope.mp4")).status == 404
+    assert (await client.get("/api/exports?take=../etc")).status == 404
+
+
+def test_export_names():
+    from vtube_hub.exports import slug
+
+    assert slug("Take Sep 24 10:02:29") == "take-sep-24-10-02-29"
+    assert slug("  ***  ") == "take"

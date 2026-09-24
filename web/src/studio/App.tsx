@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { BottomPanel } from './components/BottomPanel';
 import { Section } from './components/controls';
-import { Monitor } from './components/Monitor';
 import { Preview } from './components/Preview';
 import { Setup } from './components/Setup';
 import { Takes } from './components/Takes';
@@ -42,11 +42,7 @@ export function App() {
         </aside>
         <div className="center">
           <Preview />
-          <div className="panel monitor-panel">
-            <Section title="Tracking monitor">
-              <Monitor />
-            </Section>
-          </div>
+          <BottomPanel />
         </div>
         <aside className="panel tuning-panel">
           <Tuning />

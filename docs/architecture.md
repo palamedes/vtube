@@ -4,19 +4,21 @@ How the pieces fit, and the formats they share. For why it's built this way, see
 
 ## The idea in one paragraph
 
-The camera only drives. A tracker (the iPhone, or a webcam) measures the performer's face as 52 numbers (Apple's ARKit blendshapes) plus head rotation, about 60 times a second. The hub records those numbers and the performer's voice as a take, and streams them to any number of character pages. Each character maps the numbers onto its own parts. Characters are web pages, so OBS shows them directly as browser sources with a transparent background, and the Studio shows the very same pages for tuning. Because a take is data, it can be replayed through any character later.
+The camera only drives. A tracker (the iPhone, or a webcam) measures the performer's face as 52 numbers (Apple's ARKit blendshapes) plus head rotation, about 60 times a second. The hub records those numbers and the performer's voice as a take, and streams them to any number of character pages. Each character maps the numbers onto its own parts. Characters are web pages, so OBS shows them directly as browser sources, and the Studio shows the very same pages for tuning. Because a take is data, it can be replayed through any character later, and exported to video from the Studio.
 
 ```
 iPhone (Live Link Face) --UDP 11111--> +-----------------------+
-webcam (MediaPipe, on the hub) ------> |  hub (Python, aiohttp) | --> takes on disk
+webcam (MediaPipe, on the hub) ------> |  hub (Python, aiohttp) | --> takes and exports on disk
 simulator (built in, for testing) ---> |  127.0.0.1:8750        |     (~/.local/share/vtube)
 USB mic (PipeWire, pw-record) -------> +-----------+-----------+
                                                    | WebSocket /ws: frames, levels, status, settings
                               +--------------------+--------------------+
                               v                                         v
                    Studio  (/)                               character page (/render)
-                   preview, monitor, tuning, framing,        transparent, one character,
-                   compare, recording, playback, auto-sync   captured by OBS as a browser source
+                   preview, scene, monitor, tuning,          the character, or the whole scene,
+                   framing, compare, recording, playback,    captured by OBS as a browser source
+                   auto-sync, export (renders MP4s and
+                   uploads them; the hub adds the voice)
 ```
 
 Both pages run the same processing code (`web/src/shared`), so what you tune in the Studio is exactly what OBS shows.
@@ -47,7 +49,7 @@ Sources that disagree get an **orientation fix** per source in the hub config (`
 | Path | What it is |
 |---|---|
 | `hub/` | Python 3.12, managed by uv. Receives Live Link Face packets (`livelink.py`), tracks the webcam (`webcam.py`), runs the simulator (`simulator.py`), captures the mic through `pw-record` (`audio.py`), records takes (`takes.py`), and serves the API and the built web UI (`server.py`, `hub.py`). |
-| `web/` | Vite, TypeScript, React. Two pages: the Studio (`index.html`, `src/studio`) and the character page (`render.html`, `src/render`). Shared code in `src/shared`, characters in `src/characters`. |
+| `web/` | Vite, TypeScript, React. Three pages: the Studio (`index.html`, `src/studio`), the character page for OBS (`render.html`, `src/render`), and the character sheet (`sheet.html`, `src/sheet`). Shared code in `src/shared`, characters in `src/characters`. |
 | `vt` | Launcher: builds the web UI when it's stale, then starts the hub. |
 
 ## Ports
@@ -131,6 +133,35 @@ Timing, which is what keeps lips in sync:
 
 Settings are stored by the hub as an opaque JSON object (`settings.json` in the data dir). The pages merge it over `DEFAULT_SETTINGS`, so partial or older settings keep working.
 
+## Scene
+
+The scene is part of the settings (`settings.scene`, `web/src/shared/scene.ts`): the character, the background (`set`, `green`, `color`, or `transparent`), the kicker and headline text, and one layout per output format, `wide` (1920 × 1080) and `tall` (1080 × 1920):
+
+```json
+"wide": {"character": {"x": 0.69, "y": 1, "size": 0.94},
+         "headline": {"show": true, "x": 0.04, "y": 0.74, "width": 0.48, "size": 0.021}}
+```
+
+- `character`: `x` is its center and `y` its bottom edge, as shares of the frame's width and height; `size` is the side of its square box, as a share of the frame's height. A character may draw a little past its box (a raised head); anything below the box's bottom edge is cut off, like a bust.
+- `headline`: `x`, `y` is the top-left corner; `width` is a share of the frame's width; `size` is the text height as a share of the frame's width. The box grows downward to fit the text.
+
+The Studio preview, the OBS page, and the exporter all place things with the functions in `scene.ts`, so all three agree. The HTML frames use percentages for positions and container query units (`cqw`) for text, so a small preview scales exactly like the full-size video; the exporter draws the same geometry onto a canvas (`sceneDraw.ts`).
+
+## Export
+
+Exports render in the Studio page from a take's recorded data (`web/src/studio/exporter.ts`):
+
+1. Output time `t` starts at the first audio sample. Each frame shows the face at take time `t + audio.startOffset + syncOffset`, run through the same tuning pipeline and character as playback.
+2. The character's SVG is rasterized and drawn onto a canvas per format with the background and headline, then encoded with WebCodecs through [Mediabunny](https://github.com/Vanilagy/mediabunny): H.264 when the browser can, else VP9 or AV1; 8 Mbit/s (standard) or 16 Mbit/s (high) at 30 fps, and half again at 60 fps.
+3. Each video is uploaded to `POST /api/takes/{id}/export?view=wide|tall`. The hub adds the take's `audio.wav` with ffmpeg (`hub/src/vtube_hub/exports.py`): H.264 is copied as is and anything else is re-encoded to H.264; the voice becomes AAC at 192 kbit/s; `+faststart` puts the index up front for streaming. The result is `<data dir>/exports/<take id>/<name>-16x9.mp4` or `-9x16.mp4`, replacing an earlier export of the same take and format.
+
+The voice is never resampled or re-timed, and the video runs as long as the voice recording.
+
 ## Characters
 
-A character is a `CharacterDefinition` (`web/src/characters/types.ts`): `create(container)` returns an instance with `update(face, now)`, called every animation frame with the tuned face. Register it in `web/src/characters/index.ts` and it's available at `/render?character=<id>`. The placeholder (`placeholder.ts`) is plain SVG and shows how the channels map to parts. Planned tiers: layered 2D puppets, 3D through three.js, and offline rendering in Blender from recorded takes.
+A character is a `CharacterDefinition` (`web/src/characters/types.ts`): `create(container)` returns an instance with `update(face, now)`, called every animation frame with the tuned face. Register it in `web/src/characters/index.ts` and it appears in the Studio's Scene tab, at `/render?character=<id>`, and at `/sheet?character=<id>`, a grid of fixed poses for designing it without a tracker. Exports rasterize the character's `<svg>` element, so for now a character draws into one, in a square `viewBox`.
+
+- `placeholder.ts`: plain SVG that shows how the channels map to parts.
+- `mascot.ts`: a layered cartoon in an esports-mascot style. Its layers slide by different amounts as the head turns (the face most, the ear cups least) to suggest depth, and the parts that join layers (the glasses' arms, the mic boom) are redrawn each frame between them.
+
+Planned tiers: layered 2D puppets, 3D through three.js, and offline rendering in Blender from recorded takes.

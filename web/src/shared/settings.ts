@@ -1,4 +1,5 @@
 import { BLENDSHAPES } from './arkit';
+import { DEFAULT_SCENE, sanitizeScene, type SceneSettings } from './scene';
 
 /** The performer's face at rest, subtracted so a relaxed face reads as zero. */
 export interface NeutralPose {
@@ -8,11 +9,13 @@ export interface NeutralPose {
 }
 
 /**
- * Face tuning. The hub stores this as an opaque JSON object; every page
- * merges what it receives over DEFAULT_SETTINGS, so older or partial
- * settings keep working. Smoothing values run 0 (raw) to 1 (heavy).
+ * Everything the Studio tunes: the face (calibration, gains, smoothing) and
+ * the scene (character, layout per format, headline, background). The hub
+ * stores this as an opaque JSON object; every page merges what it receives
+ * over DEFAULT_SETTINGS, so older or partial settings keep working.
+ * Smoothing values run 0 (raw) to 1 (heavy).
  */
-export interface FaceSettings {
+export interface StudioSettings {
   version: 1;
   mirror: boolean;
   neutral: NeutralPose | null;
@@ -34,9 +37,10 @@ export interface FaceSettings {
   brows: { gain: number; smoothing: number };
   mouth: { jawGain: number; smileGain: number; shapeGain: number; smoothing: number };
   motion: { breathing: boolean; idleBlinks: boolean };
+  scene: SceneSettings;
 }
 
-export const DEFAULT_SETTINGS: FaceSettings = {
+export const DEFAULT_SETTINGS: StudioSettings = {
   version: 1,
   mirror: false,
   neutral: null,
@@ -45,6 +49,7 @@ export const DEFAULT_SETTINGS: FaceSettings = {
   brows: { gain: 1.2, smoothing: 0.45 },
   mouth: { jawGain: 1.15, smileGain: 1, shapeGain: 1, smoothing: 0.25 },
   motion: { breathing: true, idleBlinks: true },
+  scene: DEFAULT_SCENE,
 };
 
 type Json = Record<string, unknown>;
@@ -78,7 +83,12 @@ function parseNeutral(value: unknown): NeutralPose | null {
 }
 
 /** Anything from the hub (or nothing) to complete, valid settings. */
-export function mergeSettings(input: unknown): FaceSettings {
+export function mergeSettings(input: unknown): StudioSettings {
   const merged = mergeInto(DEFAULT_SETTINGS, input);
-  return { ...merged, version: 1, neutral: isObject(input) ? parseNeutral(input.neutral) : null };
+  return {
+    ...merged,
+    version: 1,
+    neutral: isObject(input) ? parseNeutral(input.neutral) : null,
+    scene: sanitizeScene(merged.scene),
+  };
 }

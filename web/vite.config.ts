@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         studio: fileURLToPath(new URL('./index.html', import.meta.url)),
         render: fileURLToPath(new URL('./render.html', import.meta.url)),
+        sheet: fileURLToPath(new URL('./sheet.html', import.meta.url)),
       },
     },
   },

@@ -368,6 +368,8 @@ input[type='range'] {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px 12px;
+  /* The stage heights below use cqw so the frames always fit side by side. */
+  container-type: inline-size;
 }
 
 .preview-toolbar {
@@ -417,20 +419,26 @@ input[type='range'] {
   gap: 16px;
 }
 
+/* Frames take the stage's height; each layout caps that height so the frames'
+   combined width (height x aspect ratio, plus gaps) fits the preview. */
 .stage.layout-both {
-  height: 46vh;
+  height: min(46vh, (100cqw - 16px) / (16 / 9 + 9 / 16));
 }
 
 .stage.layout-wide {
-  height: 56vh;
+  height: min(56vh, 100cqw * 9 / 16);
 }
 
 .stage.layout-tall {
-  height: 62vh;
+  height: min(62vh, 100cqw * 16 / 9);
 }
 
 .stage.layout-compare {
-  height: 48vh;
+  height: min(48vh, (100cqw - 16px) / 2);
+}
+
+.stage.layout-compare:has(> .frame:nth-child(3)) {
+  height: min(48vh, (100cqw - 32px) / 3);
 }
 
 .stage.layout-framing {
@@ -469,18 +477,8 @@ input[type='range'] {
   aspect-ratio: 9 / 16;
 }
 
-.bg-set {
-  background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 36px),
-    radial-gradient(circle at 70% 35%, #3566b5 0%, #1a2c57 50%, #0b1328 100%);
-}
-
 .bg-checker {
   background: repeating-conic-gradient(#3a3d48 0% 25%, #2b2e38 0% 50%) 0 0 / 24px 24px;
-}
-
-.bg-green {
-  background: #00b140;
 }
 
 .character-view {
@@ -488,64 +486,16 @@ input[type='range'] {
   height: 100%;
 }
 
-.wide-character {
-  position: absolute;
-  right: 5%;
-  bottom: 0;
-  height: 94%;
-  aspect-ratio: 1;
+/* Scene frames: positions come from the scene settings (shared/scene.ts);
+   text sizes are container query units, so they scale with the frame. */
+.scene-frame {
+  container-type: size;
+  background-size: 100% 100%;
 }
 
-.tall-character {
-  position: absolute;
-  top: 6%;
-  left: 0;
-  width: 100%;
-  aspect-ratio: 1;
-}
-
-.lower-third,
-.tall-headline {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  background: rgba(8, 12, 28, 0.9);
-  border-left: 5px solid #d64545;
-  color: white;
-}
-
-.lower-third {
-  left: 4%;
-  bottom: 10%;
-  width: 48%;
-  padding: 1.1% 1.6%;
-}
-
-.tall-headline {
-  left: 6%;
-  right: 6%;
-  top: 64%;
-  padding: 4% 5%;
-}
-
-.kicker {
-  color: #ff8a8a;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  font-size: clamp(8px, 0.8vw, 12px);
-}
-
-.headline {
-  font-weight: 700;
-  font-size: clamp(11px, 1.35vw, 22px);
-}
-
-.bg-checker .lower-third,
-.bg-checker .tall-headline,
-.bg-green .lower-third,
-.bg-green .tall-headline {
-  display: none;
+.frame.square {
+  background-size: cover;
+  background-position: center;
 }
 
 .frame-label {
@@ -831,11 +781,142 @@ input[type='range'] {
   margin-left: auto;
 }
 
-/* Monitor */
+/* Bottom panel: Scene, Tracking, Export */
 
-.monitor-panel {
+.bottom-panel {
   overflow: visible;
 }
+
+.bottom-tabs {
+  padding: 10px 14px 0;
+}
+
+.bottom-body {
+  padding: 12px 14px 14px;
+}
+
+.scene-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 22px;
+}
+
+.scene-view h4,
+.export-panel h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.scene-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0 2px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.scene-group .toggle {
+  margin: 0;
+  font-weight: 400;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+fieldset:disabled {
+  opacity: 0.4;
+}
+
+input[type='text'],
+textarea {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+}
+
+.color-input {
+  margin-top: 6px;
+  width: 64px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+}
+
+.export-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.export-options .toggle {
+  margin: 2px 0;
+}
+
+.export-go {
+  align-self: center;
+}
+
+.export-go .primary {
+  padding: 8px 22px;
+  font-size: 14px;
+}
+
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 14px;
+}
+
+.export-progress .bar {
+  flex: 1;
+  height: 8px;
+  background: var(--panel-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.export-progress .fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 150ms linear;
+}
+
+.export-files {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+.export-files li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.export-files a {
+  color: var(--accent);
+}
+
+/* Monitor */
 
 .monitor {
   overflow-x: auto;

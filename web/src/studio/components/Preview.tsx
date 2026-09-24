@@ -1,55 +1,15 @@
-import { useState } from 'react';
 import { SOURCE_NAMES, type SourceId } from '../../shared/protocol';
+import { backgroundImage } from '../../shared/sceneDraw';
 import { clockTime, signedMs } from '../format';
 import { store, type Layout } from '../store';
 import { useStudio } from '../useStudio';
 import { CharacterView } from './CharacterView';
 import { Segmented } from './controls';
 import { Framing } from './Framing';
+import { SceneFrame } from './SceneFrame';
 
-type Backdrop = 'set' | 'checker' | 'green';
-
-function rememberedBackdrop(): Backdrop {
-  try {
-    const value = localStorage.getItem('vtube.backdrop') as Backdrop | null;
-    return value && ['set', 'checker', 'green'].includes(value) ? value : 'set';
-  } catch {
-    return 'set';
-  }
-}
-
-function WideFrame({ backdrop }: { backdrop: Backdrop }) {
-  return (
-    <div className={`frame wide bg-${backdrop}`}>
-      <div className="wide-character">
-        <CharacterView />
-      </div>
-      <div className="lower-third">
-        <span className="kicker">Tonight</span>
-        <span className="headline">Your headline goes here</span>
-      </div>
-      <span className="frame-label">16:9 · YouTube</span>
-    </div>
-  );
-}
-
-function TallFrame({ backdrop }: { backdrop: Backdrop }) {
-  return (
-    <div className={`frame tall bg-${backdrop}`}>
-      <div className="tall-character">
-        <CharacterView />
-      </div>
-      <div className="tall-headline">
-        <span className="kicker">Tonight</span>
-        <span className="headline">Your headline goes here</span>
-      </div>
-      <span className="frame-label">9:16 · Shorts, Reels, TikTok</span>
-    </div>
-  );
-}
-
-function Compare({ backdrop }: { backdrop: Backdrop }) {
-  const { sources, player, config } = useStudio();
+function Compare() {
+  const { sources, player, config, settings } = useStudio();
   const order: SourceId[] = ['livelink', 'webcam', 'simulator'];
   const shown = order.filter((source) => sources.includes(source));
   if (shown.length < 2) {
@@ -78,11 +38,16 @@ function Compare({ backdrop }: { backdrop: Backdrop }) {
     );
   }
   const primary = player?.primary ?? config?.activeSource;
+  const background = backgroundImage(settings.scene, 'wide');
   return (
     <>
       {shown.map((source) => (
-        <div key={source} className={`frame square bg-${backdrop}`}>
-          <CharacterView source={source} />
+        <div
+          key={source}
+          className={`frame square ${background ? '' : 'bg-checker'}`}
+          style={background ? { backgroundImage: `url(${background})` } : undefined}
+        >
+          <CharacterView characterId={settings.scene.character} source={source} />
           <span className="frame-label">
             {SOURCE_NAMES[source]}
             {source === primary ? (player ? ' · recorded live' : ' · live output') : ''}
@@ -161,7 +126,6 @@ function Overlay() {
 
 export function Preview() {
   const { player, status, config, layout } = useStudio();
-  const [backdrop, setBackdrop] = useState<Backdrop>(rememberedBackdrop);
   const live = !player;
   const active = config?.activeSource ?? 'livelink';
   const tracking =
@@ -196,29 +160,11 @@ export function Preview() {
             { value: 'framing', label: 'Framing', title: 'Camera view, framing guides, and placement tips' },
           ]}
         />
-        {layout !== 'framing' && (
-          <Segmented<Backdrop>
-            value={backdrop}
-            onChange={(value) => {
-              setBackdrop(value);
-              try {
-                localStorage.setItem('vtube.backdrop', value);
-              } catch {
-                // not critical
-              }
-            }}
-            options={[
-              { value: 'set', label: 'News set', title: 'A mock set, to judge the look' },
-              { value: 'checker', label: 'Transparent', title: 'What OBS receives: the character only' },
-              { value: 'green', label: 'Green', title: 'Chroma green' },
-            ]}
-          />
-        )}
       </div>
       <div className={`stage layout-${layout}`}>
-        {(layout === 'wide' || layout === 'both') && <WideFrame backdrop={backdrop} />}
-        {(layout === 'tall' || layout === 'both') && <TallFrame backdrop={backdrop} />}
-        {layout === 'compare' && <Compare backdrop={backdrop} />}
+        {(layout === 'wide' || layout === 'both') && <SceneFrame view="wide" />}
+        {(layout === 'tall' || layout === 'both') && <SceneFrame view="tall" />}
+        {layout === 'compare' && <Compare />}
         {layout === 'framing' && <Framing />}
         <Overlay />
       </div>

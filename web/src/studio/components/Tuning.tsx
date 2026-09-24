@@ -1,5 +1,5 @@
 import { SOURCE_NAMES, type Orientation } from '../../shared/protocol';
-import { DEFAULT_SETTINGS as D, type FaceSettings } from '../../shared/settings';
+import { DEFAULT_SETTINGS as D, type StudioSettings } from '../../shared/settings';
 import { store } from '../store';
 import { useStudio } from '../useStudio';
 import { Section, Slider, Toggle } from './controls';
@@ -8,7 +8,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 const times = (v: number) => `${v.toFixed(2)}×`;
 const degrees = (v: number) => `${Math.round(v)}°`;
 
-function set(mutate: (draft: FaceSettings) => void) {
+function set(mutate: (draft: StudioSettings) => void) {
   store.updateSettings(mutate);
 }
 

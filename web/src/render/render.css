@@ -11,6 +11,16 @@ body {
   inset: 0;
 }
 
+/* ?view=…: the page is one scene frame; text scales with it like the Studio's. */
+#stage.scene-stage {
+  container-type: size;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+}
+
 body.checker {
   background: repeating-conic-gradient(#d9d9de 0% 25%, #f4f4f6 0% 50%) 0 0 / 32px 32px;
 }
