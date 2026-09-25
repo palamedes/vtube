@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { VIEW_NAMES, type ViewId } from '../../shared/scene';
 import { exportDuration, type ExportQuality } from '../exporter';
 import { clockTime } from '../format';
@@ -64,10 +64,9 @@ function Progress() {
 }
 
 export function Exporter() {
-  const { player, exporting, exports, settings } = useStudio();
-  const [views, setViews] = useState<ViewId[]>(['wide', 'tall']);
-  const [fps, setFps] = useState('30');
-  const [quality, setQuality] = useState<ExportQuality>('high');
+  const { player, exporting, exports, settings, exportOptions } = useStudio();
+  const { views, quality } = exportOptions;
+  const fps = String(exportOptions.fps);
   const busy = exporting?.phase === 'rendering' || exporting?.phase === 'saving';
 
   useEffect(() => {
@@ -87,7 +86,8 @@ export function Exporter() {
     );
   }
 
-  const toggle = (view: ViewId, on: boolean) => setViews((current) => (on ? [...new Set([...current, view])] : current.filter((v) => v !== view)));
+  const toggle = (view: ViewId, on: boolean) =>
+    store.setExportOptions({ views: on ? [...new Set([...views, view])] : views.filter((v) => v !== view) });
   const duration = exportDuration(player.take);
 
   return (
@@ -111,7 +111,7 @@ export function Exporter() {
           <span>Frame rate</span>
           <Segmented
             value={fps}
-            onChange={setFps}
+            onChange={(value) => store.setExportOptions({ fps: Number(value) })}
             options={[
               { value: '30', label: '30 fps' },
               { value: '60', label: '60 fps', title: 'Smoother, bigger files, twice the render time' },
@@ -122,7 +122,7 @@ export function Exporter() {
           <span>Quality</span>
           <Segmented<ExportQuality>
             value={quality}
-            onChange={setQuality}
+            onChange={(value) => store.setExportOptions({ quality: value })}
             options={[
               { value: 'standard', label: 'Standard' },
               { value: 'high', label: 'High' },
@@ -134,10 +134,16 @@ export function Exporter() {
             type="button"
             className="primary"
             disabled={busy || views.length === 0}
-            onClick={() => void store.exportTake({ views, fps: Number(fps), quality })}
+            onClick={() => void store.exportTake(exportOptions)}
           >
             {busy ? 'Exporting…' : 'Export'}
           </button>
+          <Toggle
+            label="Download when done"
+            checked={exportOptions.download}
+            hint="Also hand the files to the browser, which saves them in its downloads folder"
+            onChange={(on) => store.setExportOptions({ download: on })}
+          />
           {settings.scene.background === 'transparent' && <p className="help small">Transparent scenes export on green.</p>}
         </div>
       </div>

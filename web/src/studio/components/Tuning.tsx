@@ -131,14 +131,14 @@ export function Tuning() {
       </Section>
 
       <Section title="Mouth">
-        <Slider label="Jaw open" value={s.mouth.jawGain} defaultValue={D.mouth.jawGain} min={0} max={3} format={times} onChange={(v) => set((d) => void (d.mouth.jawGain = v))} />
-        <Slider label="Smile" value={s.mouth.smileGain} defaultValue={D.mouth.smileGain} min={0} max={3} format={times} onChange={(v) => set((d) => void (d.mouth.smileGain = v))} />
+        <Slider label="Jaw open" value={s.mouth.jawGain} defaultValue={D.mouth.jawGain} min={0} max={5} format={times} onChange={(v) => set((d) => void (d.mouth.jawGain = v))} />
+        <Slider label="Smile" value={s.mouth.smileGain} defaultValue={D.mouth.smileGain} min={0} max={5} format={times} onChange={(v) => set((d) => void (d.mouth.smileGain = v))} />
         <Slider
           label="Shapes (oo, pucker, stretch…)"
           value={s.mouth.shapeGain}
           defaultValue={D.mouth.shapeGain}
           min={0}
-          max={3}
+          max={5}
           format={times}
           onChange={(v) => set((d) => void (d.mouth.shapeGain = v))}
         />

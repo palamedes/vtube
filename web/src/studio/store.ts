@@ -34,12 +34,49 @@ export interface ExportFile {
   modified: number;
 }
 
-export type ExportState =
+export type ExportState = { take: string } & (
   | { phase: 'rendering'; done: number; total: number; startedAt: number }
   | { phase: 'saving'; startedAt: number }
   | { phase: 'done'; files: ExportFile[]; seconds: number }
   | { phase: 'error'; message: string }
-  | { phase: 'canceled' };
+  | { phase: 'canceled' }
+);
+
+/** Export choices, shared by the Export tab and the takes list's download button. */
+export interface ExportOptions {
+  views: ViewId[];
+  fps: number;
+  quality: ExportQuality;
+  /** Hand the finished files to the browser (its downloads folder) as well. */
+  download: boolean;
+}
+
+const DEFAULT_EXPORT_OPTIONS: ExportOptions = { views: ['wide', 'tall'], fps: 30, quality: 'high', download: false };
+
+function rememberedExportOptions(): ExportOptions {
+  try {
+    const saved = JSON.parse(localStorage.getItem('vtube.exportOptions') ?? '{}') as Partial<ExportOptions>;
+    const views = Array.isArray(saved.views) ? saved.views.filter((v): v is ViewId => v === 'wide' || v === 'tall') : [];
+    return {
+      views: views.length ? views : DEFAULT_EXPORT_OPTIONS.views,
+      fps: saved.fps === 60 ? 60 : 30,
+      quality: saved.quality === 'standard' ? 'standard' : 'high',
+      download: saved.download === true,
+    };
+  } catch {
+    return DEFAULT_EXPORT_OPTIONS;
+  }
+}
+
+/** Save a file the hub serves into the browser's downloads folder. */
+function downloadFile(url: string, name: string): void {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
 
 export interface PlayerView {
   take: TakeSummary;
@@ -86,6 +123,7 @@ export interface Snapshot {
   /** Sources with face data right now (live) or in the open take: what Compare can show. */
   sources: SourceId[];
   exporting: ExportState | null;
+  exportOptions: ExportOptions;
   exports: ExportFile[];
   notice: { kind: 'error' | 'info'; text: string } | null;
 }
@@ -127,6 +165,7 @@ export class StudioStore {
     directions: { phase: 'idle' },
     sources: [],
     exporting: null,
+    exportOptions: rememberedExportOptions(),
     exports: [],
     notice: null,
   };
@@ -528,18 +567,40 @@ export class StudioStore {
     if (files) this.set({ exports: files });
   }
 
-  /** Render the open take to MP4 in each chosen format; the hub adds the voice and saves the files. */
-  async exportTake(options: { views: ViewId[]; fps: number; quality: ExportQuality }): Promise<void> {
+  setExportOptions(changes: Partial<ExportOptions>): void {
+    const exportOptions = { ...this.snapshot.exportOptions, ...changes };
+    this.set({ exportOptions });
+    try {
+      localStorage.setItem('vtube.exportOptions', JSON.stringify(exportOptions));
+    } catch {
+      // not critical
+    }
+  }
+
+  /** From the takes list: open the take if needed, export it, and download the files. */
+  async downloadTake(take: TakeSummary): Promise<void> {
+    if (this.exportAbort) return;
+    if (this.player?.take.id !== take.id) await this.openTake(take);
+    if (this.player?.take.id !== take.id) return;
+    await this.exportTake({ ...this.snapshot.exportOptions, download: true });
+  }
+
+  /**
+   * Render the open take to MP4 in each chosen format; the hub adds the voice and
+   * saves the files, and with `download` they also go to the browser's downloads.
+   */
+  async exportTake(options: ExportOptions): Promise<void> {
     const player = this.player;
     const track = player?.primaryTrack;
-    if (!player || !track || this.exportAbort) return;
+    if (!player || !track || this.exportAbort || options.views.length === 0) return;
+    const take = player.take.id;
     player.pause();
     this.publishPlayer();
     const abort = new AbortController();
     this.exportAbort = abort;
     const startedAt = clock();
     let lastPublish = 0;
-    this.set({ exporting: { phase: 'rendering', done: 0, total: 1, startedAt } });
+    this.set({ exporting: { take, phase: 'rendering', done: 0, total: 1, startedAt } });
     try {
       const rendered = await renderTake({
         take: player.take,
@@ -553,10 +614,10 @@ export class StudioStore {
         onProgress: (done, total) => {
           if (clock() - lastPublish < 0.2 && done < total) return;
           lastPublish = clock();
-          this.set({ exporting: { phase: 'rendering', done, total, startedAt } });
+          this.set({ exporting: { take, phase: 'rendering', done, total, startedAt } });
         },
       });
-      this.set({ exporting: { phase: 'saving', startedAt } });
+      this.set({ exporting: { take, phase: 'saving', startedAt } });
       const files: ExportFile[] = [];
       for (const result of rendered) {
         const response = await fetch(`/api/takes/${player.take.id}/export?view=${result.view}&codec=${result.codec}`, {
@@ -568,12 +629,19 @@ export class StudioStore {
         if (!response.ok) throw new Error((body as { error?: string } | null)?.error ?? `saving failed (${response.status})`);
         files.push(body as ExportFile);
       }
-      this.set({ exporting: { phase: 'done', files, seconds: clock() - startedAt } });
-      this.notify('info', `Exported ${files.length === 1 ? files[0].file : `${files.length} videos`}.`);
+      this.set({ exporting: { take, phase: 'done', files, seconds: clock() - startedAt } });
+      const what = files.length === 1 ? files[0].file : `${files.length} videos`;
+      if (options.download) {
+        // A moment apart, so the browser takes them as separate downloads.
+        files.forEach((file, i) => setTimeout(() => downloadFile(file.url, file.file), i * 600));
+        this.notify('info', `Exported ${what}; downloading to your browser's downloads folder.`);
+      } else {
+        this.notify('info', `Exported ${what}.`);
+      }
       void this.refreshExports();
     } catch (error) {
-      if (abort.signal.aborted) this.set({ exporting: { phase: 'canceled' } });
-      else this.set({ exporting: { phase: 'error', message: error instanceof Error ? error.message : String(error) } });
+      if (abort.signal.aborted) this.set({ exporting: { take, phase: 'canceled' } });
+      else this.set({ exporting: { take, phase: 'error', message: error instanceof Error ? error.message : String(error) } });
     } finally {
       this.exportAbort = null;
     }

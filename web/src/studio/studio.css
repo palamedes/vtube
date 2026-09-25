@@ -824,6 +824,21 @@ input[type='range'] {
   font-weight: 400;
 }
 
+.take-progress {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.take-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .layout-actions {
   margin-top: 6px;
   align-items: center;

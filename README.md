@@ -73,7 +73,9 @@ The Setup panel also shows what the hub is receiving (packets per second, droppe
 
 Open a take from the Takes list, then the **Export** tab. Pick the formats (16:9, 9:16, or both), 30 or 60 fps, and the quality, and press **Export**. The browser renders every frame through the same tuning and layout as the preview, and the hub adds your original voice recording (compressed to AAC, never re-timed). Rendering both formats takes roughly as long as the take itself.
 
-The videos land in `~/.local/share/vtube/exports/<take>/`, named after the take (`<name>-16x9.mp4` and `<name>-9x16.mp4`), and the Export tab links to them. They're H.264 with AAC audio, which YouTube, Shorts, Reels, and TikTok all accept. A transparent scene exports on green, since MP4 has no transparency.
+The videos land in `~/.local/share/vtube/exports/<take>/`, named after the take (`<name>-16x9.mp4` and `<name>-9x16.mp4`), and the Export tab links to them.
+
+Quicker: the ⤓ button on a take in the Takes list exports it with the Export tab's choices and hands the MP4s to your browser, which saves them wherever it saves downloads. "Download when done" in the Export tab does the same for exports started there. They're H.264 with AAC audio, which YouTube, Shorts, Reels, and TikTok all accept. A transparent scene exports on green, since MP4 has no transparency.
 
 ## OBS
 

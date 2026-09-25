@@ -1,10 +1,24 @@
 import { useState } from 'react';
 import type { TakeSummary } from '../../shared/protocol';
+import { VIEW_NAMES } from '../../shared/scene';
 import { clockTime, shortDate } from '../format';
-import { store } from '../store';
+import { store, type ExportState } from '../store';
 import { useStudio } from '../useStudio';
 
+/** What an export of this take is doing, for its row ("" when there's nothing to say). */
+function exportNote(state: ExportState | null, take: string): string {
+  if (!state || state.take !== take) return '';
+  if (state.phase === 'rendering') return ` · exporting ${Math.round((state.done / Math.max(1, state.total)) * 100)}%`;
+  if (state.phase === 'saving') return ' · adding your voice…';
+  if (state.phase === 'error') return ' · export failed';
+  return '';
+}
+
 function TakeRow({ take, open, loading }: { take: TakeSummary; open: boolean; loading: boolean }) {
+  const { exporting, exportOptions } = useStudio();
+  const busy = exporting?.phase === 'rendering' || exporting?.phase === 'saving';
+  const mine = busy && exporting?.take === take.id;
+  const formats = exportOptions.views.map((view) => VIEW_NAMES[view].split(' · ')[0]).join(' and ');
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(take.name);
 
@@ -39,10 +53,30 @@ function TakeRow({ take, open, loading }: { take: TakeSummary; open: boolean; lo
             {shortDate(take.createdAt)} · {clockTime(take.duration)}
             {take.audio ? '' : ' · no audio'}
             {loading ? ' · loading…' : ''}
+            {exportNote(exporting, take.id)}
           </span>
+          {mine && exporting?.phase === 'rendering' && (
+            <span className="take-progress">
+              <span style={{ width: `${(exporting.done / Math.max(1, exporting.total)) * 100}%` }} />
+            </span>
+          )}
         </button>
       )}
       <div className="take-actions">
+        {mine ? (
+          <button type="button" title="Stop exporting" onClick={() => store.cancelExport()}>
+            ■
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy || exportOptions.views.length === 0}
+            title={`Export as MP4 (${formats}, ${exportOptions.fps} fps) and download it to this computer`}
+            onClick={() => void store.downloadTake(take)}
+          >
+            ⤓
+          </button>
+        )}
         <button type="button" title="Rename" onClick={() => setEditing(true)}>
           ✎
         </button>
